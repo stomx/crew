@@ -7,6 +7,5 @@
   "repository": "https://github.com/stomx/crew.git",
   "license": "MIT",
   "keywords": ["claude-code", "cmux", "codex", "gemini", "multi-agent", "orchestration", "pane"],
-  "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "skills": "./skills/"
 }
