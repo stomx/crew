@@ -1,0 +1,55 @@
+# crew — 모델 × effort 매트릭스 (2026-05 기준)
+# 수정이 잦은 유일한 파일. 새 모델 나오면 여기만 바꾼다.
+# 스크립트는 이 YAML 을 직접 파싱하지 않음 — router 가 JSON 결정에 모델 ID 를
+# 직접 넣어 보내므로 이 파일은 "메인 Claude 가 참고하는 카탈로그" 역할.
+
+claude:
+  cli: claude
+  bypass_flag: --dangerously-skip-permissions
+  model_flag: --model
+  effort_flag: --effort          # low|medium|high|xhigh|max
+  tiers:
+    fast:        { model: haiku,  effort: low }
+    standard:    { model: sonnet, effort: high }
+    deep:        { model: opus,   effort: high }
+    frontier:    { model: opus,   effort: max }
+
+codex:
+  cli: codex
+  # 사용자 ~/.codex/config.toml 에 approval_policy=never 설정됨 → bypass 플래그 주입 X
+  # --sandbox 는 정책상 주입 안 함 (사용자 요구)
+  bypass_flag: ""
+  model_flag: -m
+  effort_flag: "-c model_reasoning_effort"   # low|medium|high|xhigh
+  # ChatGPT 계정 사용 (API 키 아님) — API 전용 모델(gpt-5-mini, gpt-5-nano, gpt-5-pro 등)은
+  # "The 'X' model is not supported when using Codex with a ChatGPT account" 로 거부됨.
+  # 허용되는 것은 gpt-5.5 / gpt-5.4 계열. 티어 차이는 주로 effort 로 조절.
+  tiers:
+    fast:        { model: gpt-5.4, effort: low }
+    standard:    { model: gpt-5.5, effort: medium }
+    deep:        { model: gpt-5.5, effort: high }
+    frontier:    { model: gpt-5.5, effort: xhigh }
+
+gemini:
+  cli: gemini
+  bypass_flag: --approval-mode=yolo           # --yolo 는 deprecated
+  model_flag: -m
+  effort_flag: ""                             # Gemini 는 effort 개념 없음
+  # frontier 접근 실패 시 fallback_model 사용
+  tiers:
+    fast:        { model: gemini-2.5-flash-lite }
+    standard:    { model: gemini-2.5-flash }
+    deep:        { model: gemini-2.5-pro }
+    frontier:    { model: gemini-3.1-pro-preview, fallback_model: gemini-2.5-pro }
+
+# 라우터 선호도 (메인 Claude 참고용)
+preference:
+  default_tier: deep       # "높은 effort 선호" → standard 보다 한 단계 위를 기본
+  downgrade_to_standard_when: ["simple lookup", "format-only", "one-liner question"]
+  upgrade_to_frontier_when:   ["architecture decision", "security review", "multi-file refactor", "root-cause analysis"]
+
+# 특화
+specialty:
+  claude:  ["agentic coding", "multi-file edit", "tool use orchestration"]
+  codex:   ["backend correctness", "systems reasoning", "algorithmic deep-dive"]
+  gemini:  ["2M context ingestion", "UX & docs alternatives", "broad exploration"]

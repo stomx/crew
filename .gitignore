@@ -1,0 +1,4 @@
+# session state is user-specific, not shared
+state/
+# test ephemera
+tests/.bats/
