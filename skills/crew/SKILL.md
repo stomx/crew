@@ -123,11 +123,24 @@ index=.omc/artifacts/crew/20260504-150301-12345/index.md
 cleaned=yes
 ```
 
-### 4. 결과 합성 (메인 Claude 가 반드시 수행)
+### 4. 각 pane 의 응답 완료 후 동작 (자동)
+
+한 pane 이 응답을 마치면 run.sh 가 자동으로 다음을 수행한다:
+
+1. **idle 감지** — `wait_idle.sh` 가 뷰포트+스크롤백 SHA 안정 + CLI-specific done 패턴으로 완료 판정 (기본 IDLE_SECS=3s, POLL=0.5s)
+2. **slot 저장** — `capture.sh` 가 pane 화면 전체를 `$state_dir/slots/pane-N.md` 로 저장 (프롬프트 + 응답)
+3. **탭 rename** — 해당 pane 의 cmux tab 을 `crew#N ✓ claude:opus — role` 형태로 바꿔 완료 표시 (timeout 은 `⏱`)
+4. **share_from 전달** — 다음 stage 에서 이 pane 의 결과를 요구하는 pane 이 있으면 `slot.sh share` 가 자동으로 상위 pane 의 slot 을 하위 pane 의 입력으로 주입
+5. **로그 이벤트** — report pane (`tail -f crew.log`) 에 `← pane-N status=idle → slot path` 라인 출력
+6. **전체 stage 완료 후** — `collect.sh` 가 모든 slot 을 `.omc/artifacts/crew/<slug>/` 로 복사하고 메인 Claude 가 synthesis 작성
+
+> **중요**: pane 끼리 직접 통신하지 않는다. 메인이 다리 역할. 최종 합성도 메인 전담.
+
+### 5. 결과 합성 (메인 Claude 가 반드시 수행)
 
 `$artifact_root/pane-*.md` 의 `## pane capture` 섹션을 읽어 각 LLM 의 답변을 추출하고, **합의점 / 대립점 / 최종 방향 / 액션 체크리스트** 형태로 `$artifact_root/synthesis.md` 를 작성한 뒤 사용자에게 보고한다.
 
-### 5. 히스토리
+### 6. 히스토리
 
 `.omc/artifacts/crew/<slug>/` 는 **그대로 보존** — 작업 히스토리 문서화.
 세션 state(`~/.claude/skills/crew/state/<slug>/`) 는 cleanup 시 삭제.

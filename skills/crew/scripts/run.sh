@@ -21,7 +21,7 @@ crew_require_cmux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 PLAN_INPUT="${1:?plan JSON path (or -) required}"
-IDLE_SECS="${2:-8}"
+IDLE_SECS="${2:-3}"
 MAX_SECS="${3:-300}"
 VIEW_SECS="${4:-${CREW_VIEW_SECS:-10}}"
 
@@ -161,7 +161,8 @@ for stage in $STAGES; do
     [[ -n "$p" ]] && wait "$p" || true
   done
 
-  # Capture each pane
+  # Capture each pane — ① idle/timeout 감지 → ② 화면을 slot md 로 저장
+  # → ③ 탭 이름을 "✓ done" 표시로 rename → pane 은 cleanup 시점까지 유지
   for tgt in "${TARGETS[@]:-}"; do
     [[ -z "$tgt" ]] && continue
     IFS=':' read -r pane_idx status_file cli model <<< "$tgt"
@@ -169,6 +170,11 @@ for stage in $STAGES; do
     rm -f "$status_file"
     prompt_file=$(jq -r --argjson i "$((pane_idx - 1))" '.panes[$i].prompt_file' "$MANIFEST")
     slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
+    role=$(jq -r --argjson i "$((pane_idx - 1))" '.panes[$i].role // empty' "$MANIFEST")
+    surface=$(jq -r --argjson idx "$pane_idx" '.surfaces[$idx]' "$MANIFEST")
+    mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
+    new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
+    cmux rename-tab --surface "$surface" "$new_label" >/dev/null 2>&1 || true
     report "  ← pane-$pane_idx ($cli $model) status=$status → $slot"
   done
   report "stage $stage complete"

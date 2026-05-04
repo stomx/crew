@@ -116,6 +116,17 @@ for i in $(seq 0 $((N - 1))); do
   fi
 
   SURFACES[$((i+1))]="$new_surface"
+
+  # Rename the new tab/surface to reflect the pane's role/model so the user
+  # can identify each pane at a glance in the workspace tab bar.
+  pane_role="$(echo "$PLAN" | jq -r ".panes[$i].role // empty")"
+  pane_cli="$(echo  "$PLAN" | jq -r ".panes[$i].cli // empty")"
+  pane_model="$(echo "$PLAN" | jq -r ".panes[$i].model // empty")"
+  label="crew#$((i+1))"
+  [[ -n "$pane_cli" ]]   && label="$label · $pane_cli"
+  [[ -n "$pane_model" ]] && label="$label:$pane_model"
+  [[ -n "$pane_role" ]]  && label="$label — $pane_role"
+  cmux rename-tab --surface "$new_surface" "$label" >/dev/null 2>&1 || true
 done
 
 # Give shells a beat
@@ -137,7 +148,9 @@ for i in $(seq 0 $((N - 1))); do
       [[ -n "$effort" ]] && cmd="$cmd --effort $effort"
       ;;
     codex)
-      cmd="codex"
+      # Codex 공식 bypass: --dangerously-bypass-approvals-and-sandbox
+      # (사용자 config 의 approval_policy=never 에 의존하지 않음)
+      cmd="codex --dangerously-bypass-approvals-and-sandbox"
       [[ -n "$model" ]]  && cmd="$cmd -m $model"
       [[ -n "$effort" ]] && cmd="$cmd -c model_reasoning_effort=$effort"
       ;;
@@ -211,6 +224,7 @@ done
 REPORT_SURFACE=""
 REPORT_SURFACE="$(cmux new-split down --surface "$CALLER_SURFACE" 2>&1 | crew_parse_surface || true)"
 if [[ -n "$REPORT_SURFACE" ]]; then
+  cmux rename-tab --surface "$REPORT_SURFACE" "crew · report ($SLUG)" >/dev/null 2>&1 || true
   sleep 0.5
   cmux send     --surface "$REPORT_SURFACE" "tail -f $LOG_FILE" >/dev/null
   cmux send-key --surface "$REPORT_SURFACE" Enter >/dev/null

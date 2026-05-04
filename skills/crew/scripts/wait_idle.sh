@@ -22,10 +22,11 @@ source "$HERE/common.sh"
 crew_require_cmux
 
 SURFACE="${1:?surface ref required}"
-IDLE_SECS="${2:-8}"
+IDLE_SECS="${2:-3}"
 MAX_SECS="${3:-300}"
 CLI="${4:-}"                # optional: claude | codex | gemini
-POLL_INTERVAL="${POLL_INTERVAL:-2}"
+# 기본 폴링 0.5s — 답변 완료 즉시 반응. CREW_POLL_INTERVAL 로 override.
+POLL_INTERVAL="${CREW_POLL_INTERVAL:-${POLL_INTERVAL:-0.5}}"
 
 hash_surface() {
   local viewport scrollback
@@ -62,9 +63,11 @@ cli_done() {
       return 1
       ;;
     gemini)
-      # Gemini: answer line starts with ✦, input box shows "Type your message"
-      echo "$screen" | grep -qE '✦ ' \
-        && echo "$screen" | grep -qE 'Type your message' \
+      # Gemini: 응답이 완료되면 입력 footer 가 다시 보임. spinner animation
+      # 때문에 '✦ ' prefix 가 사라질 수 있어서 둘 중 하나라도 있고
+      # footer 가 이미 돌아와 있으면 idle 로 판정.
+      echo "$screen" | grep -qE 'Type your message' \
+        && echo "$screen" | grep -qE '\? for shortcuts|YOLO' \
         && return 0
       return 1
       ;;
@@ -94,7 +97,7 @@ while :; do
     screen="$(viewport_text)"
     if cli_done "$screen"; then
       # Small grace period so trailing frames finish rendering
-      sleep 1
+      sleep 0.3
       echo "idle"
       exit 0
     fi
