@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-STATE_DIR="${CREW_STATE_DIR:-$HOME/.claude/skills/crew/state}"
+STATE_DIR="${CREW_STATE_DIR:-$HOME/.crew/state}"
 FLAG="$STATE_DIR/.setup-done"
 
 # Already onboarded? Nothing to say.
@@ -28,7 +28,7 @@ else
 fi
 
 if command -v jq >/dev/null 2>&1; then
-  jq -cn --arg ctx "$msg" '{hookSpecificOutput: {additionalContext: $ctx}}'
+  jq -cn --arg ctx "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $ctx}}'
 else
   # jq 없으면 알림만 stdout 에 출력 (hook 포맷 없이 무시됨)
   echo "$msg" >&2

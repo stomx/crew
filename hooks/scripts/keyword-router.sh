@@ -26,13 +26,14 @@ PROMPT="$(echo "$PAYLOAD" | jq -r '.prompt // empty' 2>/dev/null || true)"
 
 emit_context() {
   local target="$1" reason="$2"
-  # hookSpecificOutput.additionalContext is appended to the model turn
-  # so Claude sees the routing hint without disturbing the user's prompt.
+  # Per Claude Code hooks spec, UserPromptSubmit can emit additionalContext
+  # through hookSpecificOutput; hookEventName is required.
+  # Claude sees this appended to the turn without disturbing the user prompt.
   jq -cn \
     --arg ctx "[crew routing] ${reason}
 Preferred skill invocation: ${target}
 Fallback: open the skill SKILL.md file at \$CLAUDE_PLUGIN_ROOT/skills/<name>/SKILL.md and follow its instructions." \
-    '{hookSpecificOutput: {additionalContext: $ctx}}'
+    '{hookSpecificOutput: {hookEventName: "UserPromptSubmit", additionalContext: $ctx}}'
 }
 
 # Match explicit slash forms first (most specific)

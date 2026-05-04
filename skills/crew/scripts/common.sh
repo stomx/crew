@@ -7,7 +7,9 @@
 
 set -u
 
-CREW_STATE_DIR="${CREW_STATE_DIR:-$HOME/.claude/skills/crew/state}"
+# State (per-session manifest/slots) defaults under the user's home.
+# Override with CREW_STATE_DIR if you want it elsewhere.
+CREW_STATE_DIR="${CREW_STATE_DIR:-$HOME/.crew/state}"
 CREW_ARTIFACT_DIR="${CREW_ARTIFACT_DIR:-.omc/artifacts/crew}"
 
 crew_require_cmux() {
