@@ -1,0 +1,12 @@
+{
+  "name": "crew",
+  "owner": { "name": "stomx" },
+  "description": "crew plugin marketplace",
+  "plugins": [
+    {
+      "name": "crew",
+      "source": "./",
+      "description": "cmux pane 기반 가시 서브에이전트. 메인 Claude 가 LLM·티어·effort 를 라우팅 결정해 Claude/Codex/Gemini 를 workspace pane 에 bypass 모드로 띄워 병렬 실행하고 결과 합성."
+    }
+  ]
+}
