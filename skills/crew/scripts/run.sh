@@ -112,70 +112,65 @@ report "launched $PANE_COUNT pane(s) for session $SLUG"
 # Determine stage ordering
 STAGES="$(echo "$PLAN" | jq -r '[.panes[].stage // 1] | unique | sort | .[]')"
 
+# Per-pane worker. Runs in background so fast panes don't wait for slow ones:
+#   ready-poll → share_from inject → dispatch → idle-poll → capture → rename.
+# Emits the status line as its final stdout, which is consumed by the capture
+# loop after `wait`.
+pane_worker() {
+  local pane_idx="$1"
+  local i=$((pane_idx - 1))
+  local cli model prompt_file role surface shares from_idx status slot mark new_label
+  cli=$(jq -r          --argjson i "$i"        '.panes[$i].cli'               "$MANIFEST")
+  model=$(jq -r        --argjson i "$i"        '.panes[$i].model // ""'       "$MANIFEST")
+  prompt_file=$(jq -r  --argjson i "$i"        '.panes[$i].prompt_file'       "$MANIFEST")
+  role=$(jq -r         --argjson i "$i"        '.panes[$i].role // empty'     "$MANIFEST")
+  surface=$(jq -r      --argjson idx "$pane_idx" '.surfaces[$idx]'            "$MANIFEST")
+
+  # Block until this CLI shows its prompt-ready marker. Polls at 0.5s so the
+  # first-ready pane fires immediately without waiting on slower siblings.
+  if ! crew_wait_ready "$surface" "$cli" 45; then
+    echo "[$(date +%H:%M:%S)]   ! pane-$pane_idx ($cli) not ready after 45s — dispatching anyway" >> "$LOG_FILE"
+  else
+    echo "[$(date +%H:%M:%S)]   • pane-$pane_idx ($cli) ready" >> "$LOG_FILE"
+  fi
+
+  # share_from 처리 (stage 순서는 외부에서 이미 보장됨)
+  shares=$(jq -r --argjson i "$i" '.panes[$i].share_from // [] | .[]' "$MANIFEST")
+  if [[ -n "$shares" ]]; then
+    while IFS= read -r from_idx; do
+      [[ -z "$from_idx" ]] && continue
+      echo "[$(date +%H:%M:%S)]   ⇢ sharing pane-$from_idx → pane-$pane_idx" >> "$LOG_FILE"
+      "$HERE/slot.sh" share "$SLUG" "$from_idx" "$pane_idx" >> "$LOG_FILE" 2>&1 \
+        || echo "[$(date +%H:%M:%S)]   ! share pane-$from_idx → pane-$pane_idx failed" >> "$LOG_FILE"
+    done <<< "$shares"
+    "$HERE/wait_idle.sh" "$surface" 4 60 "$cli" >/dev/null 2>&1 || true
+  fi
+
+  "$HERE/dispatch.sh" "$SLUG" "$pane_idx" "$prompt_file" >> "$LOG_FILE" 2>&1
+  echo "[$(date +%H:%M:%S)]   → pane-$pane_idx ($cli $model) prompt dispatched" >> "$LOG_FILE"
+
+  status="$("$HERE/wait_idle.sh" "$surface" "$IDLE_SECS" "$MAX_SECS" "$cli" 2>/dev/null || echo unknown)"
+  slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
+  mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
+  new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
+  cmux rename-tab --surface "$surface" "$new_label" >/dev/null 2>&1 || true
+  echo "[$(date +%H:%M:%S)]   ← pane-$pane_idx ($cli $model) status=$status → $slot" >> "$LOG_FILE"
+}
+
 for stage in $STAGES; do
   report "stage $stage starting"
   PIDS=()
-  TARGETS=()
 
   for i in $(seq 0 $((PANE_COUNT - 1))); do
     pane_stage=$(jq -r --argjson i "$i" '.panes[$i].stage // 1' "$MANIFEST")
     [[ "$pane_stage" == "$stage" ]] || continue
     pane_idx=$((i + 1))
-    prompt_file=$(jq -r --argjson i "$i" '.panes[$i].prompt_file' "$MANIFEST")
-    cli=$(jq -r  --argjson i "$i" '.panes[$i].cli'          "$MANIFEST")
-    model=$(jq -r --argjson i "$i" '.panes[$i].model // ""' "$MANIFEST")
-
-    # Auto-share upstream pane slots before dispatching this pane's prompt.
-    # Each share injects the referenced pane's captured slot as a preamble,
-    # then this pane's own prompt follows. (slot.sh share writes and submits,
-    # so we send the share first, let it settle, then send the main prompt.)
-    shares=$(jq -r --argjson i "$i" '.panes[$i].share_from // [] | .[]' "$MANIFEST")
-    if [[ -n "$shares" ]]; then
-      while IFS= read -r from_idx; do
-        [[ -z "$from_idx" ]] && continue
-        report "  ⇢ sharing pane-$from_idx → pane-$pane_idx"
-        "$HERE/slot.sh" share "$SLUG" "$from_idx" "$pane_idx" >> "$LOG_FILE" 2>&1 || {
-          report "  ! share pane-$from_idx → pane-$pane_idx failed (continuing)"
-        }
-        sleep 0.5
-      done <<< "$shares"
-      # Give the receiving CLI a beat to process the shared context before
-      # we send the actual prompt on top.
-      surface=$(jq -r --argjson idx "$pane_idx" '.surfaces[$idx]' "$MANIFEST")
-      "$HERE/wait_idle.sh" "$surface" 4 60 "$cli" >/dev/null 2>&1 || true
-    fi
-
-    "$HERE/dispatch.sh" "$SLUG" "$pane_idx" "$prompt_file" >> "$LOG_FILE" 2>&1
-    report "  → pane-$pane_idx ($cli $model) prompt dispatched"
-
-    # Start idle wait in background (PID in filename to avoid concurrent run collisions)
-    status_file="/tmp/crew-$SLUG-$$-pane-$pane_idx.status"
-    surface=$(jq -r --argjson idx "$pane_idx" '.surfaces[$idx]' "$MANIFEST")
-    "$HERE/wait_idle.sh" "$surface" "$IDLE_SECS" "$MAX_SECS" "$cli" > "$status_file" &
+    pane_worker "$pane_idx" &
     PIDS+=($!)
-    TARGETS+=("$pane_idx:$status_file:$cli:$model")
   done
 
-  # Wait for all panes in this stage
   for p in "${PIDS[@]:-}"; do
     [[ -n "$p" ]] && wait "$p" || true
-  done
-
-  # Capture each pane — ① idle/timeout 감지 → ② 화면을 slot md 로 저장
-  # → ③ 탭 이름을 "✓ done" 표시로 rename → pane 은 cleanup 시점까지 유지
-  for tgt in "${TARGETS[@]:-}"; do
-    [[ -z "$tgt" ]] && continue
-    IFS=':' read -r pane_idx status_file cli model <<< "$tgt"
-    status="$(cat "$status_file" 2>/dev/null || echo unknown)"
-    rm -f "$status_file"
-    prompt_file=$(jq -r --argjson i "$((pane_idx - 1))" '.panes[$i].prompt_file' "$MANIFEST")
-    slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
-    role=$(jq -r --argjson i "$((pane_idx - 1))" '.panes[$i].role // empty' "$MANIFEST")
-    surface=$(jq -r --argjson idx "$pane_idx" '.surfaces[$idx]' "$MANIFEST")
-    mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
-    new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
-    cmux rename-tab --surface "$surface" "$new_label" >/dev/null 2>&1 || true
-    report "  ← pane-$pane_idx ($cli $model) status=$status → $slot"
   done
   report "stage $stage complete"
 done

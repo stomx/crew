@@ -168,56 +168,9 @@ for i in $(seq 0 $((N - 1))); do
   cmux send-key --surface "$surface" Enter   >/dev/null
 done
 
-# Initial boot wait
-sleep 4
-
-# Auto-dismiss Gemini trust dialog on any gemini pane
-for i in $(seq 0 $((N - 1))); do
-  cli="$(echo "$PLAN" | jq -r ".panes[$i].cli")"
-  [[ "$cli" == "gemini" ]] || continue
-  surface="${SURFACES[$((i+1))]}"
-  for _ in 1 2 3 4 5 6 7 8; do
-    gscr="$(cmux read-screen --surface "$surface" --scrollback --lines 200 2>/dev/null || true)"
-    if echo "$gscr" | grep -qi "trust the files in this folder"; then
-      cmux send-key --surface "$surface" Enter >/dev/null
-      sleep 1
-    else
-      break
-    fi
-  done
-done
-
-# Wait for each CLI to reach "prompt-ready" state. Different CLIs have
-# different ready signatures in their live TUI. If ready not detected within
-# max_wait seconds, fall back (dispatch may still succeed, but warn).
-wait_for_ready() {
-  local surface="$1" cli="$2" max_wait="${3:-30}"
-  local pattern
-  case "$cli" in
-    claude) pattern='bypass permissions on|Claude Code v' ;;
-    codex)  pattern='/model to change|OpenAI Codex' ;;
-    gemini) pattern='Type your message|@path/to/file' ;;
-    *)      return 0 ;;
-  esac
-  local waited=0
-  while (( waited < max_wait )); do
-    local screen
-    screen="$(cmux read-screen --surface "$surface" 2>/dev/null || true)"
-    if echo "$screen" | grep -qE "$pattern"; then
-      return 0
-    fi
-    sleep 1
-    waited=$((waited + 1))
-  done
-  echo "warning: $cli pane not ready after ${max_wait}s (surface $surface)" >&2
-  return 1
-}
-
-for i in $(seq 0 $((N - 1))); do
-  cli="$(echo "$PLAN" | jq -r ".panes[$i].cli")"
-  surface="${SURFACES[$((i+1))]}"
-  wait_for_ready "$surface" "$cli" 30 || true
-done
+# Ready-wait is deferred to run.sh: it polls each pane right before dispatching
+# the prompt, so fast CLIs fire immediately without being blocked by slow ones
+# (no fixed sleep, no serial max_wait).
 
 # Spawn a report pane (below the caller) running `tail -f <log>` so the user
 # sees a live stream of crew events — launch, idle, capture, done.
