@@ -10,7 +10,9 @@ set -u
 # State (per-session manifest/slots) defaults under the user's home.
 # Override with CREW_STATE_DIR if you want it elsewhere.
 CREW_STATE_DIR="${CREW_STATE_DIR:-$HOME/.crew/state}"
-CREW_ARTIFACT_DIR="${CREW_ARTIFACT_DIR:-.omc/artifacts/crew}"
+# artifact 는 cwd 에 의존하지 않도록 절대경로로 고정. override 하고 싶으면
+# CREW_ARTIFACT_DIR 환경변수로 명시.
+CREW_ARTIFACT_DIR="${CREW_ARTIFACT_DIR:-$HOME/.crew/artifacts}"
 
 crew_require_cmux() {
   if ! command -v cmux >/dev/null 2>&1; then

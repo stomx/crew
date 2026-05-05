@@ -64,7 +64,7 @@ setup() {
   # ported from ccg-panel. We use crew_synthesis_path instead which is defined.
   run crew_synthesis_path slugZ
   [ "$status" -eq 0 ]
-  [[ "$output" == *.omc/artifacts/crew/slugZ/synthesis.md ]]
+  [[ "$output" == *.crew/artifacts/slugZ/synthesis.md ]]
 }
 
 @test "CREW_STATE_DIR default under ~/.crew" {
@@ -72,9 +72,9 @@ setup() {
   [[ "$CREW_STATE_DIR" == */.crew/state ]]
 }
 
-@test "CREW_ARTIFACT_DIR default uses .omc/artifacts/crew" {
+@test "CREW_ARTIFACT_DIR default uses ~/.crew/artifacts" {
   [ -n "${CREW_ARTIFACT_DIR:-}" ]
-  [[ "$CREW_ARTIFACT_DIR" == *.omc/artifacts/crew ]]
+  [[ "$CREW_ARTIFACT_DIR" == */.crew/artifacts ]]
 }
 
 @test "crew_have detects missing command" {
