@@ -21,7 +21,7 @@ crew_require_cmux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 PLAN_INPUT="${1:?plan JSON path (or -) required}"
-IDLE_SECS="${2:-3}"
+IDLE_SECS="${2:-5}"
 MAX_SECS="${3:-300}"
 VIEW_SECS="${4:-${CREW_VIEW_SECS:-10}}"
 

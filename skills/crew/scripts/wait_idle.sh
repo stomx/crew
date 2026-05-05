@@ -22,7 +22,7 @@ source "$HERE/common.sh"
 crew_require_cmux
 
 SURFACE="${1:?surface ref required}"
-IDLE_SECS="${2:-3}"
+IDLE_SECS="${2:-5}"
 MAX_SECS="${3:-300}"
 CLI="${4:-}"                # optional: claude | codex | gemini
 # 기본 폴링 0.5s — 답변 완료 즉시 반응. CREW_POLL_INTERVAL 로 override.
@@ -42,12 +42,38 @@ viewport_text() {
 # Per-CLI "response complete" detector. Returns 0 if viewport shows both a
 # recent answer prefix AND a ready-for-next-input marker. Keep patterns
 # loose: match on substrings that survive wraparound.
-cli_done() {
+# "현재 생각 중" 스피너가 화면에 있으면 아직 완료가 아님.
+# 각 CLI 의 "Xxx-ing... Ns" 형태 (Claude: thinking/Undulating/Cooking/Seasoning 등
+# 랜덤 단어 + 뒤에 's · ' 또는 '(Ns'; Codex: "Working Ns" 또는 "Searching";
+# Gemini: "Thinking... Ns") 를 포괄하는 정규식.
+cli_busy() {
   local screen="$1"
   case "$CLI" in
     claude)
-      # Claude Code: answer line begins with ⏺, input ready indicated by
-      # the bypass permissions footer and ❯ prompt.
+      # 시간 카운터가 붙는 동적 상태 라인: "(10s · thinking)", "(11s · ↓ 222 tokens)",
+      # "Cooked for 12s", "Working… 5s". 완료 후엔 이 라인이 사라진다.
+      echo "$screen" | grep -qE '\([0-9]+s ·|… \([0-9]+s' && return 0
+      return 1
+      ;;
+    codex)
+      echo "$screen" | grep -qE 'Working \([0-9]+s|esc to interrupt|Searching the web' && return 0
+      return 1
+      ;;
+    gemini)
+      echo "$screen" | grep -qE 'Thinking\.\.\. \(esc to cancel|Responding with' && return 0
+      return 1
+      ;;
+  esac
+  return 1
+}
+
+cli_done() {
+  local screen="$1"
+  # busy spinner 가 보이면 절대 done 아님 (False-positive 차단)
+  cli_busy "$screen" && return 1
+  case "$CLI" in
+    claude)
+      # 답변 prefix ⏺ + 입력 footer + 빈 ❯ 프롬프트 모두 존재.
       echo "$screen" | grep -qE '⏺ ' \
         && echo "$screen" | grep -qE 'bypass permissions on' \
         && echo "$screen" | grep -qE '^❯|^\s*❯' \
@@ -55,19 +81,16 @@ cli_done() {
       return 1
       ;;
     codex)
-      # Codex: answer line starts with •, and input prompt line starts with ›
-      # (followed by a sample hint like "Use /skills..." or "Implement ...").
+      # 답변 prefix • + 입력 prompt › 둘 다 있고 busy 아님.
       echo "$screen" | grep -qE '^• |^\s*• ' \
         && echo "$screen" | grep -qE '^› |^\s*› ' \
         && return 0
       return 1
       ;;
     gemini)
-      # Gemini: 응답이 완료되면 입력 footer 가 다시 보임. spinner animation
-      # 때문에 '✦ ' prefix 가 사라질 수 있어서 둘 중 하나라도 있고
-      # footer 가 이미 돌아와 있으면 idle 로 판정.
-      echo "$screen" | grep -qE 'Type your message' \
-        && echo "$screen" | grep -qE '\? for shortcuts|YOLO' \
+      # 답변 prefix ✦ + 입력 footer 둘 다.
+      echo "$screen" | grep -qE '✦ ' \
+        && echo "$screen" | grep -qE 'Type your message' \
         && return 0
       return 1
       ;;
