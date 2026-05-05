@@ -39,7 +39,17 @@ fi
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 SLUG="$(echo "$PLAN" | jq -r '.slug // empty')"
-[[ -z "$SLUG" ]] && SLUG="$(crew_timestamp)-$$"
+# 기본 slug: 타임스탬프 + 런처 PID + 무작위 4자리. 같은 초에 두 세션이
+# 동시 실행돼도 충돌하지 않도록 RANDOM 으로 최종 격리.
+[[ -z "$SLUG" ]] && SLUG="$(crew_timestamp)-$$-$RANDOM"
+
+# 사용자가 plan.slug 를 고정값으로 준 경우라도 동일 slug 의 세션이 이미
+# 살아 있으면 경고하고 접미사로 격리해 덮어쓰기를 방지한다.
+if [[ -d "$(crew_session_dir "$SLUG")" ]]; then
+  NEW_SLUG="${SLUG}-$(date +%H%M%S)-$RANDOM"
+  echo "warning: session dir for '$SLUG' already exists — using '$NEW_SLUG' instead" >&2
+  SLUG="$NEW_SLUG"
+fi
 
 N=$(echo "$PLAN" | jq '.panes | length')
 if (( N < 1 )); then

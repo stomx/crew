@@ -87,6 +87,23 @@ MANIFEST="$(crew_manifest_path "$SLUG")"
 LOG_FILE="$(crew_log_path "$SLUG")"
 MAIN_SURFACE="$(jq -r '.caller_surface // empty' "$MANIFEST")"
 
+# Per-session prompt snapshot — protects against concurrent crew sessions
+# overwriting the same /tmp/crew.paneN.txt. We copy every plan.panes[].prompt_file
+# into $session/prompts/ and rewrite manifest.json so downstream dispatch reads
+# the snapshot, not the shared path.
+SESSION_PROMPT_DIR="$(crew_session_dir "$SLUG")/prompts"
+mkdir -p "$SESSION_PROMPT_DIR"
+NPANES=$(jq '.panes | length' "$MANIFEST")
+for i in $(seq 0 $((NPANES - 1))); do
+  orig=$(jq -r --argjson i "$i" '.panes[$i].prompt_file' "$MANIFEST")
+  [[ -f "$orig" ]] || continue
+  snap="$SESSION_PROMPT_DIR/pane-$((i+1)).txt"
+  cp -f "$orig" "$snap"
+  tmp_manifest="$(mktemp)"
+  jq --argjson i "$i" --arg p "$snap" '.panes[$i].prompt_file = $p' "$MANIFEST" > "$tmp_manifest"
+  mv -f "$tmp_manifest" "$MANIFEST"
+done
+
 # Helper: emit a timestamped line to both report log and crew's own stdout.
 # Optionally also whisper to the main pane's textarea (no Enter, user sees it
 # without it being submitted as a message).

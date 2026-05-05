@@ -57,9 +57,15 @@ description: cmux pane 기반 가시 서브에이전트. 메인 Claude 가 프�
 
 ### 2. Plan JSON 작성
 
-```json
+**중요**: 메인 Claude 는 세션마다 `TMP=$(mktemp -d -t crew.XXXXXX)` 로 전용 디렉터리를 만든 뒤 그 안에 `pane-N.txt` 를 쓴다. `/tmp/crew.paneN.txt` 같은 **고정 경로**는 쓰지 말 것 — 같은 프로젝트의 두 Claude Code 세션이 동시에 crew 를 돌리면 서로의 prompt 파일을 덮어쓴다. (run.sh 가 prompt 를 세션 디렉터리로 스냅샷 해주지만, 메인 Claude 가 prompt 파일을 쓰는 순간에는 이미 충돌이 일어날 수 있음.)
+
+```bash
+TMP=$(mktemp -d -t crew.XXXXXX)
+cat > "$TMP/pane-1.txt" <<'EOF' ... EOF
+cat > "$TMP/pane-2.txt" <<'EOF' ... EOF
+cat > "$TMP/plan.json" <<EOF
 {
-  "slug": "optional-slug",
+  "slug": "$(date +%Y%m%d-%H%M%S)-weather",
   "panes": [
     {
       "id": 1,
@@ -67,7 +73,7 @@ description: cmux pane 기반 가시 서브에이전트. 메인 Claude 가 프�
       "model": "opus",
       "effort": "high",
       "role": "pick a topic",
-      "prompt_file": "/tmp/crew.pane1.txt",
+      "prompt_file": "$TMP/pane-1.txt",
       "stage": 1
     },
     {
@@ -76,16 +82,18 @@ description: cmux pane 기반 가시 서브에이전트. 메인 Claude 가 프�
       "model": "gpt-5.5",
       "effort": "xhigh",
       "role": "use pane-1 topic",
-      "prompt_file": "/tmp/crew.pane2.txt",
+      "prompt_file": "$TMP/pane-2.txt",
       "stage": 2,
       "share_from": [1]
     }
   ]
 }
+EOF
 ```
 
+- **`slug`**: 고정값을 쓰면 같은 slug 의 이전 세션 디렉터리를 덮어쓸 위험이 있으니, 접두사 + 타임스탬프로 항상 유일하게 만들 것. 생략하면 launch.sh 가 `YYYYMMDD-HHMMSS-$$-$RANDOM` 으로 자동 부여.
 - **`stage`**: 작은 번호부터 순차 실행. 같은 stage 는 병렬. 생략 시 `1`.
-- **`prompt_file`**: 프롬프트 본문은 **파일로** 전달 (긴 컨텍스트 안정성).
+- **`prompt_file`**: 프롬프트 본문은 **파일로** 전달 (긴 컨텍스트 안정성). run.sh 는 실행 시 각 prompt 파일을 `~/.crew/state/<slug>/prompts/` 로 스냅샷해 원본 경로 변경이나 삭제에 영향받지 않는다.
 - **`share_from`** (선택): 상위 stage pane 의 출력 slot 을 자동으로 이 pane 에 주입한 뒤 본 프롬프트를 실행한다. 예: `"share_from": [1, 3]` 이면 pane-1, pane-3 의 캡처가 순서대로 주입된다.
   - 제약: `share_from` 대상 pane 은 **현재 pane 보다 작은 stage** 여야 함 (검증됨). 자기 자신 금지.
   - 내부적으로 `slot.sh share` 가 자동 호출되고, 이후 pane 이 share 를 처리할 시간을 잠깐 기다린 뒤 본 프롬프트가 dispatch 된다.
