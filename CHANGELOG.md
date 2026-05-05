@@ -5,8 +5,6 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 형식을 따르며, 이 프로젝트는
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) 을 준수합니다.
 
-## [Unreleased]
-
 ## [0.4.1] - 2026-05-06
 
 ### Fixed
@@ -106,7 +104,6 @@
 - hook 출력에 `hookEventName` 필드 추가 (Claude Code 공식 hook 스펙 준수).
 - `plugin.json` 의 `hooks` 필드 제거 (자동 로드 경로와 중복 에러 회피).
 
-[Unreleased]: https://github.com/stomx/crew/compare/v0.4.1...HEAD
 [0.4.1]: https://github.com/stomx/crew/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/stomx/crew/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/stomx/crew/compare/v0.3.2...v0.3.3

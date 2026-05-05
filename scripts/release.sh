@@ -2,15 +2,20 @@
 # Release helper for crew plugin.
 #
 # 사용법:
-#   scripts/release.sh <new_version>     — plugin.json bump + CHANGELOG unreleased 승격 + commit + tag + push + GitHub Release
-#   scripts/release.sh --dry-run <ver>   — 실제 git/gh 호출 없이 변경 미리보기
+#   scripts/release.sh <new_version>       — 실제 릴리스
+#   scripts/release.sh --dry-run <ver>     — 미리보기
+#
+# 동작:
+#   1. plugin.json 의 version 을 <ver> 로 bump
+#   2. 이전 태그 이후 커밋 제목을 모아 CHANGELOG.md 상단(소개문 직후)에 새 섹션 삽입
+#      [X.Y.Z] - YYYY-MM-DD
+#      ### <type>
+#      - <subject 본문부>
+#   3. commit → tag v<ver> → push main + tag → gh release 생성 (notes = 그 섹션)
 #
 # 전제:
-#   1. CHANGELOG.md 의 [Unreleased] 섹션에 이 버전의 변경점이 이미 작성돼 있을 것.
-#   2. working tree clean (CHANGELOG.md/plugin.json 외 미커밋 변경 없음).
-#   3. gh CLI 가 인증돼 있을 것 (GitHub Release 용).
-#
-# 버전 규칙: semver. 기존 최신 태그보다 커야 함.
+#   - working tree clean
+#   - gh CLI 인증 완료 (GitHub Release 용)
 
 set -euo pipefail
 
@@ -26,7 +31,6 @@ if [[ -z "$NEW_VER" ]]; then
   exit 1
 fi
 
-# semver 체크 (prerelease/build metadata 허용)
 if ! [[ "$NEW_VER" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-+].+)?$ ]]; then
   echo "error: $NEW_VER 는 semver 형식이 아님" >&2
   exit 2
@@ -43,17 +47,11 @@ CHANGELOG="$REPO_ROOT/CHANGELOG.md"
 command -v jq >/dev/null 2>&1 || { echo "error: jq 필요"   >&2; exit 3; }
 
 CUR_VER=$(jq -r .version "$PLUGIN_JSON")
-
-if [[ "$CUR_VER" == "$NEW_VER" ]]; then
-  echo "error: plugin.json 이 이미 $NEW_VER — 버전을 올려야 함" >&2
-  exit 4
-fi
-
 TAG="v${NEW_VER}"
-if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
-  echo "error: $TAG 태그가 이미 존재" >&2
-  exit 5
-fi
+
+[[ "$CUR_VER" != "$NEW_VER" ]] || { echo "error: plugin.json 이 이미 $NEW_VER" >&2; exit 4; }
+! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null \
+  || { echo "error: $TAG 태그가 이미 존재" >&2; exit 5; }
 
 if [[ $DRY_RUN -eq 0 ]]; then
   if ! git diff --quiet || ! git diff --cached --quiet; then
@@ -64,82 +62,95 @@ if [[ $DRY_RUN -eq 0 ]]; then
 fi
 
 TODAY=$(date +%Y-%m-%d)
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+RANGE="${PREV_TAG:+$PREV_TAG..}HEAD"
 
-# CHANGELOG 의 Unreleased 섹션을 버전 섹션으로 승격
-# 정확히 "## [Unreleased]" 라인을 "## [X.Y.Z] - YYYY-MM-DD" 로 바꾸고
-# 그 직전에 빈 [Unreleased] 를 새로 삽입
-tmp_changelog=$(mktemp)
-awk -v ver="$NEW_VER" -v today="$TODAY" '
-  BEGIN { replaced=0 }
-  /^## \[Unreleased\]$/ && !replaced {
-    print "## [Unreleased]"
-    print ""
-    print "## [" ver "] - " today
-    replaced=1
-    next
+# Conventional Commits 를 Keep-a-Changelog 섹션으로 매핑
+classify() {
+  case "$1" in
+    feat)              echo "Added" ;;
+    fix)               echo "Fixed" ;;
+    perf|refactor)     echo "Changed" ;;
+    docs|chore|test|*) echo "Other" ;;
+  esac
+}
+
+# 현재 릴리스 커밋("chore: 릴리스 X.Y.Z")은 제외
+declare -A buckets
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  [[ "$line" =~ ^chore:\ 릴리스\  ]] && continue
+  # "type: subject" 분해
+  if [[ "$line" =~ ^([a-zA-Z]+):\ (.+)$ ]]; then
+    type="${BASH_REMATCH[1]}"
+    subj="${BASH_REMATCH[2]}"
+  else
+    type="other"
+    subj="$line"
+  fi
+  section=$(classify "$type")
+  buckets[$section]+="- $subj"$'\n'
+done < <(git log --format='%s' $RANGE 2>/dev/null || true)
+
+# 새 섹션 텍스트 생성
+new_section=$'\n## ['"$NEW_VER"$'] - '"$TODAY"$'\n'
+for sec in Added Changed Fixed Other; do
+  if [[ -n "${buckets[$sec]:-}" ]]; then
+    new_section+=$'\n### '"$sec"$'\n'"${buckets[$sec]}"
+  fi
+done
+# compare 각주
+compare_line="[$NEW_VER]: https://github.com/stomx/crew/compare/${PREV_TAG:-v0.0.0}...${TAG}"
+
+# CHANGELOG 에 새 섹션 삽입 — 첫 "## [" 바로 앞에
+tmp=$(mktemp)
+awk -v ins="$new_section" '
+  BEGIN { done=0 }
+  /^## \[/ && !done {
+    print ins
+    done=1
   }
   { print }
-' "$CHANGELOG" > "$tmp_changelog"
+' "$CHANGELOG" > "$tmp"
 
-if ! diff -q "$CHANGELOG" "$tmp_changelog" >/dev/null 2>&1; then
-  :
-else
-  echo "warning: CHANGELOG.md 에 [Unreleased] 섹션이 없어 승격 생략" >&2
+# compare 각주를 파일 끝에 추가 (중복 방지)
+if ! grep -qF "[$NEW_VER]:" "$tmp"; then
+  printf '%s\n' "$compare_line" >> "$tmp"
 fi
-
-# 링크 각주에 새 버전 compare 추가 — 파일 끝에 형식 [X.Y.Z]: .../compare/vPREV...vX.Y.Z
-# 기존 [Unreleased] compare 링크의 ...HEAD 왼쪽 태그도 새 버전으로 교체
-tmp_changelog2=$(mktemp)
-awk -v ver="$NEW_VER" -v prev="$CUR_VER" -v today="$TODAY" '
-  /^\[Unreleased\]:/ {
-    # [Unreleased]: https://github.com/stomx/crew/compare/vX...HEAD
-    gsub(/v[0-9][^.]*\.[0-9]+\.[0-9]+(\.\.\.HEAD)/, "v" ver "...HEAD")
-    print
-    # 바로 뒤에 새 버전 링크 추가
-    print "[" ver "]: https://github.com/stomx/crew/compare/v" prev "...v" ver
-    next
-  }
-  { print }
-' "$tmp_changelog" > "$tmp_changelog2"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "=== DRY RUN ==="
   echo "current version: $CUR_VER"
   echo "new version:     $NEW_VER"
-  echo "tag:             $TAG"
-  echo "today:           $TODAY"
+  echo "prev tag:        ${PREV_TAG:-(none)}"
+  echo "commit range:    $RANGE"
   echo "--- CHANGELOG.md diff preview ---"
-  diff -u "$CHANGELOG" "$tmp_changelog2" || true
+  diff -u "$CHANGELOG" "$tmp" || true
   echo "--- plugin.json diff preview ---"
   jq --arg v "$NEW_VER" '.version = $v' "$PLUGIN_JSON" | diff -u "$PLUGIN_JSON" - || true
-  rm -f "$tmp_changelog" "$tmp_changelog2"
+  rm -f "$tmp"
   exit 0
 fi
 
-# 실제 적용
-mv "$tmp_changelog2" "$CHANGELOG"
-rm -f "$tmp_changelog"
+mv "$tmp" "$CHANGELOG"
 
 jq --arg v "$NEW_VER" '.version = $v' "$PLUGIN_JSON" > "${PLUGIN_JSON}.tmp"
 mv "${PLUGIN_JSON}.tmp" "$PLUGIN_JSON"
 
 git add "$PLUGIN_JSON" "$CHANGELOG"
 git commit -m "chore: 릴리스 $NEW_VER"
-
 git tag -a "$TAG" -m "Release $NEW_VER"
 git push origin main
 git push origin "$TAG"
 
-# GitHub Release (gh 있으면 자동, 없으면 수동 안내)
 if command -v gh >/dev/null 2>&1; then
-  # CHANGELOG 에서 이 버전 섹션만 추출 (다음 ## 또는 각주 전까지)
   notes=$(awk -v ver="$NEW_VER" '
     $0 == "## [" ver "] - '"$TODAY"'" { on=1; next }
     on && /^## \[/ { exit }
     on && /^\[[^ ]+\]:/ { exit }
     on { print }
   ' "$CHANGELOG")
-  printf '%s' "$notes" | gh release create "$TAG" --title "$TAG" --notes-file -
+  printf '%s' "$notes" | gh release create "$TAG" --title "$TAG" --notes-file - --latest
   echo "✓ GitHub Release 생성: $TAG"
 else
   echo "warning: gh CLI 없음 — 수동으로 https://github.com/stomx/crew/releases/new?tag=$TAG 방문" >&2
