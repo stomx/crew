@@ -38,17 +38,21 @@ fi
 # Require jq — plan is JSON.
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
-SLUG="$(echo "$PLAN" | jq -r '.slug // empty')"
-# 기본 slug: 타임스탬프 + 런처 PID + 무작위 4자리. 같은 초에 두 세션이
-# 동시 실행돼도 충돌하지 않도록 RANDOM 으로 최종 격리.
-[[ -z "$SLUG" ]] && SLUG="$(crew_timestamp)-$$-$RANDOM"
+USER_SLUG="$(echo "$PLAN" | jq -r '.slug // empty')"
+WS_SLUG="$(crew_workspace_slug)"
+# slug 구조:
+#   기본:       ws-<id>/<timestamp>-<pid>-<rand>   ← 같은 workspace 의 모든 run 이 한 폴더 아래
+#   user slug:  ws-<id>/<user_slug>-<timestamp>-<rand>   ← 사용자가 이름을 줘도 항상 유일
+if [[ -z "$USER_SLUG" ]]; then
+  RUN="$(crew_timestamp)-$$-$RANDOM"
+else
+  RUN="${USER_SLUG}-$(crew_timestamp)-$RANDOM"
+fi
+SLUG="${WS_SLUG}/${RUN}"
 
-# 사용자가 plan.slug 를 고정값으로 준 경우라도 동일 slug 의 세션이 이미
-# 살아 있으면 경고하고 접미사로 격리해 덮어쓰기를 방지한다.
+# 혹시라도 동일 경로가 이미 존재하면 추가 접미사로 격리.
 if [[ -d "$(crew_session_dir "$SLUG")" ]]; then
-  NEW_SLUG="${SLUG}-$(date +%H%M%S)-$RANDOM"
-  echo "warning: session dir for '$SLUG' already exists — using '$NEW_SLUG' instead" >&2
-  SLUG="$NEW_SLUG"
+  SLUG="${SLUG}-$RANDOM"
 fi
 
 N=$(echo "$PLAN" | jq '.panes | length')
@@ -206,7 +210,17 @@ MANIFEST="$(crew_manifest_path "$SLUG")"
     '. + { slug: $slug, caller_surface: $caller, surfaces: $surfaces, report_surface: $report, log_file: $log, created_at: $created }'
 } > "$MANIFEST"
 
+# workspace/latest 심링크를 이번 run 으로 갱신. share_from "prev:N" 이
+# 여기를 따라간다.
+WS_DIR="$(crew_workspace_dir)"
+mkdir -p "$WS_DIR"
+# SLUG = "ws-xxx/run-yyy" 형태이므로 run 부분만 추출해 심링크 타겟으로 쓴다
+# (상대 심링크로 남겨 둬야 workspace 이동 시에도 깨지지 않음).
+RUN_REL="${SLUG#${WS_SLUG}/}"
+ln -snf "$RUN_REL" "$WS_DIR/latest"
+
 echo "slug=$SLUG"
+echo "workspace=$WS_SLUG"
 echo "manifest=$MANIFEST"
 echo "session_dir=$SESSION_DIR"
 echo "report_surface=$REPORT_SURFACE"

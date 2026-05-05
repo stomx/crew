@@ -153,6 +153,32 @@ cleaned=yes
 `.omc/artifacts/crew/<slug>/` 는 **그대로 보존** — 작업 히스토리 문서화.
 세션 state(`~/.claude/skills/crew/state/<slug>/`) 는 cleanup 시 삭제.
 
+## 같은 workspace 에서 연속 호출 (이어가기)
+
+같은 cmux workspace 안에서 `/crew:crew` 를 여러 번 호출하면 모든 run 이
+`~/.crew/state/ws-<workspace_id_prefix>/` 아래 모이고, 항상 최신 run 을
+가리키는 `latest` 심링크가 함께 갱신된다. 이 덕분에 다음 호출에서 이전
+run 의 pane 결과를 그대로 참고할 수 있다:
+
+```json
+{
+  "share_from": ["prev:3"]        // latest run 의 pane-3 결과를 주입
+}
+// 또는
+{
+  "share_from": ["prev-2:1"]      // 2번 전 run 의 pane-1 결과를 주입
+}
+```
+
+메인 Claude 도 이전 run 결과를 직접 읽어 synthesis 에 포함할 수 있다:
+
+```bash
+ls ~/.crew/state/ws-*/latest/slots/
+cat ~/.crew/state/ws-*/latest/slots/pane-1.md
+```
+
+> 다른 workspace 는 서로 격리된다 (워크스페이스 ID 가 접두사로 들어가므로).
+
 ## pane 간 데이터 교환 (staged 모드)
 
 stage 1 → stage 2 사이에 `pane-1` 의 결과를 `pane-2` 에 넘기려면:

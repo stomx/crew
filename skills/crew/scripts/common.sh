@@ -34,6 +34,67 @@ crew_timestamp() {
   date +%Y%m%d-%H%M%S
 }
 
+# Workspace 단위 slug 접두사. 같은 cmux workspace 에서 호출된 모든 crew
+# run 은 이 접두사 아래 모인다. CMUX_WORKSPACE_ID 가 없으면 'default'.
+crew_workspace_slug() {
+  local w="${CMUX_WORKSPACE_ID:-default}"
+  # UUID 앞 8자만 (가독성). 특수 문자는 '-' 로 치환.
+  local prefix="${w:0:8}"
+  echo "ws-${prefix//[^A-Za-z0-9]/-}"
+}
+
+# 워크스페이스 디렉터리 (~/.crew/state/ws-XXX/).
+crew_workspace_dir() {
+  echo "${CREW_STATE_DIR}/$(crew_workspace_slug)"
+}
+
+# "latest" 심링크가 가리키는 run slug (없으면 빈 문자열).
+crew_latest_run() {
+  local link="$(crew_workspace_dir)/latest"
+  [[ -L "$link" ]] || return 0
+  local target
+  target="$(readlink "$link")"
+  # latest 는 "run-<timestamp>..." 같은 상대경로 한 조각이어야 함.
+  echo "$(crew_workspace_slug)/${target}"
+}
+
+# "prev:N" / "prev-2:N" 같은 share 표현을 실제 slot 파일 경로로 해석.
+# "prev:N" → latest 의 pane-N
+# "prev-K:N" → K 번 전 run 의 pane-N
+# 숫자만 → 현재 run 의 pane-N (기존 표현, 그대로 반환해 호출측이 처리)
+# 반환: 성공시 절대경로, 실패시 공문자 + stderr 경고.
+crew_resolve_share_ref() {
+  local ref="$1"
+  case "$ref" in
+    prev:* )
+      local n="${ref#prev:}"
+      local latest
+      latest="$(crew_latest_run)"
+      [[ -n "$latest" ]] || { echo "" ; return 1; }
+      echo "${CREW_STATE_DIR}/${latest}/slots/pane-${n}.md"
+      ;;
+    prev-*:* )
+      local k_part="${ref%%:*}"         # prev-2
+      local k="${k_part#prev-}"         # 2
+      local n="${ref##*:}"              # pane index
+      local ws_dir runs
+      ws_dir="$(crew_workspace_dir)"
+      # runs 디렉터리의 모든 서브폴더를 mtime 역순으로 나열, K 번째를 고름.
+      # latest 심링크 자체는 제외.
+      local target_run
+      target_run="$(find "$ws_dir" -maxdepth 1 -mindepth 1 -type d -print0 \
+                    2>/dev/null | xargs -0 -n1 -I{} bash -c 'stat -f "%m %N" "$1"' _ {} \
+                    | sort -rn | awk -v k="$k" 'NR==k {print $2}')"
+      [[ -n "$target_run" ]] || { echo "" ; return 1; }
+      echo "${target_run}/slots/pane-${n}.md"
+      ;;
+    * )
+      echo ""
+      return 1
+      ;;
+  esac
+}
+
 # Parse "surface:NN" out of a cmux response line.
 crew_parse_surface() {
   awk '/surface:[0-9]+/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/) { print $i; exit } }'

@@ -77,14 +77,17 @@ case "$TARGET" in
     exit 1
     ;;
   all)
-    shopt -s nullglob
+    # state/<ws-slug>/<run-id>/manifest.json 구조를 훑는다. 과거 평면 구조
+    # (state/<slug>/manifest.json) 도 같은 find 로 모두 잡힘.
     any=0
-    for d in "$CREW_STATE_DIR"/*/; do
+    while IFS= read -r -d '' manifest; do
       any=1
-      slug="$(basename "$d")"
+      # manifest 경로에서 state/ 이후의 slug 를 추출 ("ws-xxx/run-yyy").
+      relpath="${manifest#$CREW_STATE_DIR/}"
+      slug="${relpath%/manifest.json}"
       echo "--- $slug ---"
       close_from_manifest "$slug"
-    done
+    done < <(find "$CREW_STATE_DIR" -type f -name manifest.json -print0 2>/dev/null)
     close_orphan_panes
     if (( any == 0 )); then
       echo "no crew sessions found (orphan scan done)"

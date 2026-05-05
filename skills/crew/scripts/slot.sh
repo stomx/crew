@@ -30,17 +30,29 @@ case "$ACTION" in
     SLUG="${2:?slug required}"
     FROM="${3:?from pane idx required}"
     TO="${4:?to pane idx required}"
-    FROM_SLOT="$(crew_slot_path "$SLUG" "$FROM")"
-    [[ -f "$FROM_SLOT" ]] || { echo "error: from-slot missing: $FROM_SLOT" >&2; exit 2; }
+
+    # FROM 은 숫자 (현재 run 의 pane) 또는 "prev:N" / "prev-K:N" (이전 run 의 pane).
+    case "$FROM" in
+      prev:*|prev-*:* )
+        FROM_SLOT="$(crew_resolve_share_ref "$FROM")"
+        FROM_LABEL="$FROM"
+        ;;
+      * )
+        FROM_SLOT="$(crew_slot_path "$SLUG" "$FROM")"
+        FROM_LABEL="pane-$FROM"
+        ;;
+    esac
+    [[ -n "$FROM_SLOT" && -f "$FROM_SLOT" ]] \
+      || { echo "error: from-slot missing: $FROM_SLOT (ref: $FROM)" >&2; exit 2; }
 
     # Craft a prompt that pastes the from-slot content for the to-pane to ingest.
     TMP="$(mktemp -t crew-share.XXXXXX)"
     {
-      echo "다른 pane(pane-$FROM) 에서 아래 결과를 받았습니다. 이를 참고해 다음 단계를 수행해 주세요."
+      echo "다른 pane($FROM_LABEL) 에서 아래 결과를 받았습니다. 이를 참고해 다음 단계를 수행해 주세요."
       echo
-      echo "----- BEGIN pane-$FROM OUTPUT -----"
+      echo "----- BEGIN $FROM_LABEL OUTPUT -----"
       cat "$FROM_SLOT"
-      echo "----- END pane-$FROM OUTPUT -----"
+      echo "----- END $FROM_LABEL OUTPUT -----"
     } > "$TMP"
 
     "$HERE/dispatch.sh" "$SLUG" "$TO" "$TMP"

@@ -64,8 +64,12 @@ for i in $(seq 0 $((PANE_TOTAL - 1))); do
   [[ -z "$shares" ]] && continue
   while IFS= read -r from; do
     [[ -z "$from" ]] && continue
+    # "prev:N" / "prev-K:N" 는 이전 run 참조 — stage/DAG 검증 대상 아님.
+    if [[ "$from" =~ ^prev(-[0-9]+)?:[0-9]+$ ]]; then
+      continue
+    fi
     if ! [[ "$from" =~ ^[0-9]+$ ]] || (( from < 1 || from > PANE_TOTAL )); then
-      echo "error: pane $my_idx share_from has invalid ref: $from (must be 1..$PANE_TOTAL)" >&2
+      echo "error: pane $my_idx share_from has invalid ref: $from (must be 1..$PANE_TOTAL or prev[-K]:N)" >&2
       exit 7
     fi
     if (( from == my_idx )); then
