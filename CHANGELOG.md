@@ -9,6 +9,12 @@
 
 
 
+
+## [0.4.6] - 2026-05-06
+
+### Fixed
+- cli_busy 보강 및 hash-idle 경로에 busy 가드 추가
+
 ## [0.4.5] - 2026-05-06
 
 ### Added
@@ -148,3 +154,4 @@
 [0.4.3]: https://github.com/stomx/crew/compare/v0.4.2...v0.4.3
 [0.4.4]: https://github.com/stomx/crew/compare/v0.4.3...v0.4.4
 [0.4.5]: https://github.com/stomx/crew/compare/v0.4.4...v0.4.5
+[0.4.6]: https://github.com/stomx/crew/compare/v0.4.5...v0.4.6
