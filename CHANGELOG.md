@@ -8,6 +8,12 @@
 
 
 
+
+## [0.4.5] - 2026-05-06
+
+### Added
+- setup 이 cli_available 을 기록하고 crew 라우팅의 하드 제약으로 사용
+
 ## [0.4.4] - 2026-05-06
 
 ### Fixed
@@ -141,3 +147,4 @@
 [0.4.2]: https://github.com/stomx/crew/compare/v0.4.1...v0.4.2
 [0.4.3]: https://github.com/stomx/crew/compare/v0.4.2...v0.4.3
 [0.4.4]: https://github.com/stomx/crew/compare/v0.4.3...v0.4.4
+[0.4.5]: https://github.com/stomx/crew/compare/v0.4.4...v0.4.5
