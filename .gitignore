@@ -1,4 +1,2 @@
-# session state is user-specific, not shared
-state/
-# test ephemera
-tests/.bats/
+# 로컬 테스트·메모리 artifact
+.omc/
