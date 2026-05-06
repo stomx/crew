@@ -7,6 +7,12 @@
 
 
 
+
+## [0.4.4] - 2026-05-06
+
+### Fixed
+- launch 시작 시 dangling latest 자동 복구
+
 ## [0.4.3] - 2026-05-06
 
 ### Fixed
@@ -134,3 +140,4 @@
 [0.2.0]: https://github.com/stomx/crew/releases/tag/v0.2.0
 [0.4.2]: https://github.com/stomx/crew/compare/v0.4.1...v0.4.2
 [0.4.3]: https://github.com/stomx/crew/compare/v0.4.2...v0.4.3
+[0.4.4]: https://github.com/stomx/crew/compare/v0.4.3...v0.4.4
