@@ -50,45 +50,82 @@ crew_workspace_dir() {
   echo "${CREW_STATE_DIR}/$(crew_workspace_slug)"
 }
 
-# "latest" 심링크가 가리키는 run slug (없으면 빈 문자열).
-crew_latest_run() {
-  local link="$(crew_workspace_dir)/latest"
+# "latest" 심링크가 실제로 가리키는 디렉터리(존재하는 것). 없으면 빈 문자열.
+# cleanup 후에는 state dir 이 사라져도 artifact dir 로 재바인딩된다.
+# 끊어진 링크를 발견하면 같은 slug 의 artifact 디렉터리로 자동 복구.
+crew_latest_dir() {
+  local ws_dir link target
+  ws_dir="$(crew_workspace_dir)"
+  link="$ws_dir/latest"
   [[ -L "$link" ]] || return 0
-  local target
   target="$(readlink "$link")"
-  # latest 는 "run-<timestamp>..." 같은 상대경로 한 조각이어야 함.
-  echo "$(crew_workspace_slug)/${target}"
+  [[ -n "$target" ]] || return 0
+  # 절대경로면 그대로, 상대경로면 ws_dir 기준으로 해석
+  case "$target" in
+    /*) : ;;
+    *)  target="$ws_dir/$target" ;;
+  esac
+  if [[ -d "$target" ]]; then
+    echo "$target"
+    return 0
+  fi
+  # dangling — artifact 에 같은 run_id 가 있으면 거기로 복구
+  local run_id="${target##*/}"
+  local artifact="${CREW_ARTIFACT_DIR}/$(crew_workspace_slug)/${run_id}"
+  if [[ -d "$artifact" ]]; then
+    ln -snf "$artifact" "$link" 2>/dev/null || true
+    echo "$artifact"
+    return 0
+  fi
+  return 0
 }
 
-# "prev:N" / "prev-2:N" 같은 share 표현을 실제 slot 파일 경로로 해석.
-# "prev:N" → latest 의 pane-N
-# "prev-K:N" → K 번 전 run 의 pane-N
-# 숫자만 → 현재 run 의 pane-N (기존 표현, 그대로 반환해 호출측이 처리)
-# 반환: 성공시 절대경로, 실패시 공문자 + stderr 경고.
+# 주어진 디렉터리(run dir 일 수도, artifact dir 일 수도) 안에서
+# pane-N 의 slot md 경로를 반환. 둘 다 시도, 존재하는 것 선택.
+crew_slot_in_dir() {
+  local dir="$1" n="$2"
+  [[ -d "$dir" ]] || { echo ""; return 1; }
+  if   [[ -f "$dir/slots/pane-${n}.md" ]]; then echo "$dir/slots/pane-${n}.md"
+  elif [[ -f "$dir/pane-${n}.md" ]];         then echo "$dir/pane-${n}.md"
+  else echo ""; return 1
+  fi
+}
+
+# "prev:N" / "prev-K:N" share 표현을 실제 slot 파일 경로로 해석.
+# prev:N    → latest 가 가리키는 run 의 pane-N
+# prev-K:N  → K 번째 이전 run (latest 제외) 의 pane-N.
+#             state 와 artifact 를 모두 스캔해 최신 K 번째를 선택.
 crew_resolve_share_ref() {
   local ref="$1"
   case "$ref" in
     prev:* )
       local n="${ref#prev:}"
-      local latest
-      latest="$(crew_latest_run)"
-      [[ -n "$latest" ]] || { echo "" ; return 1; }
-      echo "${CREW_STATE_DIR}/${latest}/slots/pane-${n}.md"
+      local dir
+      dir="$(crew_latest_dir)"
+      [[ -n "$dir" ]] || { echo ""; return 1; }
+      crew_slot_in_dir "$dir" "$n"
       ;;
     prev-*:* )
       local k_part="${ref%%:*}"         # prev-2
       local k="${k_part#prev-}"         # 2
       local n="${ref##*:}"              # pane index
-      local ws_dir runs
-      ws_dir="$(crew_workspace_dir)"
-      # runs 디렉터리의 모든 서브폴더를 mtime 역순으로 나열, K 번째를 고름.
-      # latest 심링크 자체는 제외.
+      local ws_slug state_ws artifact_ws
+      ws_slug="$(crew_workspace_slug)"
+      state_ws="${CREW_STATE_DIR}/${ws_slug}"
+      artifact_ws="${CREW_ARTIFACT_DIR}/${ws_slug}"
+      # state + artifact 의 run 디렉터리를 mtime 역순으로 합쳐 K 번째 선택
       local target_run
-      target_run="$(find "$ws_dir" -maxdepth 1 -mindepth 1 -type d -print0 \
-                    2>/dev/null | xargs -0 -n1 -I{} bash -c 'stat -f "%m %N" "$1"' _ {} \
-                    | sort -rn | awk -v k="$k" 'NR==k {print $2}')"
-      [[ -n "$target_run" ]] || { echo "" ; return 1; }
-      echo "${target_run}/slots/pane-${n}.md"
+      target_run="$(
+        {
+          [[ -d "$state_ws"    ]] && find "$state_ws"    -maxdepth 1 -mindepth 1 -type d ! -name latest 2>/dev/null
+          [[ -d "$artifact_ws" ]] && find "$artifact_ws" -maxdepth 1 -mindepth 1 -type d                2>/dev/null
+        } | awk '!seen[substr($0, match($0, /[^\/]+$/))]++' \
+          | while read -r d; do stat -f "%m %N" "$d" 2>/dev/null; done \
+          | sort -rn \
+          | awk -v k="$k" 'NR==k {print $2}'
+      )"
+      [[ -n "$target_run" ]] || { echo ""; return 1; }
+      crew_slot_in_dir "$target_run" "$n"
       ;;
     * )
       echo ""

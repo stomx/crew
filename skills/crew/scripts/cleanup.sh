@@ -51,7 +51,23 @@ close_from_manifest() {
     fi
   fi
 
-  # Remove session state dir (but NOT artifact dir under .omc/)
+  # Rebind workspace "latest" symlink to the artifact copy of this run before
+  # we remove the state dir. prev:N share references keep working after cleanup.
+  # slug format: "ws-xxx/run-yyy" → ws = "ws-xxx", run = "run-yyy"
+  local ws_slug run_id ws_dir target
+  if [[ "$slug" == */* ]]; then
+    ws_slug="${slug%%/*}"
+    run_id="${slug#*/}"
+    ws_dir="${CREW_STATE_DIR}/${ws_slug}"
+    target="${CREW_ARTIFACT_DIR}/${ws_slug}/${run_id}"
+    if [[ -d "$target" ]]; then
+      # Point latest at the artifact dir (absolute path). crew_resolve_share_ref
+      # already treats latest as a general slot-source pointer.
+      ln -snf "$target" "$ws_dir/latest" 2>/dev/null || true
+    fi
+  fi
+
+  # Remove session state dir (artifact dir under ~/.crew/artifacts/ is kept)
   rm -rf "$(crew_session_dir "$slug")"
 }
 
