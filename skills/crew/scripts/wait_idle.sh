@@ -50,9 +50,12 @@ cli_busy() {
   local screen="$1"
   case "$CLI" in
     claude)
-      # 시간 카운터가 붙는 동적 상태 라인: "(10s · thinking)", "(11s · ↓ 222 tokens)",
-      # "Cooked for 12s", "Working… 5s". 완료 후엔 이 라인이 사라진다.
-      echo "$screen" | grep -qE '\([0-9]+s ·|… \([0-9]+s' && return 0
+      # claude 는 생성 중 " ● <Word>ing… (Ns ...)" 또는 "✻ <Word>ed for Ns" 같은
+      # 상태 라인을 계속 갱신한다. 시간 단위(s, m) 둘 다 포괄.
+      # 대표 spinner prefix: "● ", "✻ "
+      echo "$screen" | grep -qE '^[[:space:]]*[●✻][[:space:]][A-Z][a-zA-Z]+(ing|ed)(…|\.\.\.)? *(\(|for )' && return 0
+      # 시간 카운터 형태: "(10s · thinking)", "(2m 41s · ...)", "… (Ns"
+      echo "$screen" | grep -qE '\([0-9]+[ms]( [0-9]+[ms])? ·|… \([0-9]+[ms]' && return 0
       return 1
       ;;
     codex)
@@ -61,6 +64,8 @@ cli_busy() {
       ;;
     gemini)
       echo "$screen" | grep -qE 'Thinking\.\.\. \(esc to cancel|Responding with' && return 0
+      # queue 상태: 이전 프롬프트 처리 중이거나 선행 메시지 대기.
+      echo "$screen" | grep -qE 'Queued \(press' && return 0
       return 1
       ;;
   esac
@@ -135,6 +140,16 @@ while :; do
     continue
   fi
   if (( seen_activity == 1 )) && (( $(date +%s) - last_change_epoch >= IDLE_SECS )); then
+    # Hash 가 IDLE_SECS 동안 고정됐어도 cli_busy 가 true 면 idle 로 단정하지 않는다.
+    # 예: claude 의 "(3s)" 타이머가 폴링 간격 사이 업데이트되지 않아 해시가 우연히
+    # 안정돼 보이는 경우 — 실제로는 여전히 생성 중.
+    if [[ -n "$CLI" ]]; then
+      screen="$(viewport_text)"
+      if cli_busy "$screen"; then
+        continue
+      fi
+    fi
+    sleep 0.3
     echo "idle"
     exit 0
   fi
