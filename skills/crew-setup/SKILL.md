@@ -17,7 +17,9 @@ crew plugin 을 처음 쓰거나 CLI 환경이 바뀌었을 때 한 번 실행. 
 
 ## Step 1 — Silent Health Check
 
-아래 bash 를 `Bash` 툴로 실행한다. 결과를 파싱해 `pass` / `fail` / `missing` 을 판정.
+**반드시 아래 bash 블록을 정확히 그대로 `Bash` 툴로 실행해야 한다. 임의의 감지 루틴(예: `command -v ...; echo ...`) 으로 대체하지 말 것.** 이 블록은 `oauth_creds.json` / `GEMINI_API_KEY` 같은 **실제 credential 유무** 까지 검증한다. `selectedType` 만 보는 간이 감지는 오판을 만든다.
+
+실행 후 출력에서 `CREW_HEALTH_CLAUDE=`, `CREW_HEALTH_CODEX=`, `CREW_HEALTH_GEMINI=` 세 줄만 파싱. 값은 `pass` / `fail` / `missing` 중 하나.
 
 ```bash
 mkdir -p ~/.crew/state
