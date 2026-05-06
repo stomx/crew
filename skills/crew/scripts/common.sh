@@ -69,12 +69,25 @@ crew_latest_dir() {
     echo "$target"
     return 0
   fi
-  # dangling — artifact 에 같은 run_id 가 있으면 거기로 복구
+  # dangling — 1) 같은 run_id 의 artifact 가 있으면 그걸 우선.
   local run_id="${target##*/}"
-  local artifact="${CREW_ARTIFACT_DIR}/$(crew_workspace_slug)/${run_id}"
+  local artifact_ws="${CREW_ARTIFACT_DIR}/$(crew_workspace_slug)"
+  local artifact="${artifact_ws}/${run_id}"
   if [[ -d "$artifact" ]]; then
     ln -snf "$artifact" "$link" 2>/dev/null || true
     echo "$artifact"
+    return 0
+  fi
+  # 2) run_id 매치가 없으면 workspace 의 artifact 중 가장 최근으로 fallback.
+  local newest
+  if [[ -d "$artifact_ws" ]]; then
+    newest="$(find "$artifact_ws" -maxdepth 1 -mindepth 1 -type d 2>/dev/null \
+              | while read -r d; do stat -f "%m %N" "$d" 2>/dev/null; done \
+              | sort -rn | awk 'NR==1 {print $2}')"
+  fi
+  if [[ -n "${newest:-}" && -d "$newest" ]]; then
+    ln -snf "$newest" "$link" 2>/dev/null || true
+    echo "$newest"
     return 0
   fi
   return 0

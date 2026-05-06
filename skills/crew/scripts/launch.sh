@@ -40,6 +40,12 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 USER_SLUG="$(echo "$PLAN" | jq -r '.slug // empty')"
 WS_SLUG="$(crew_workspace_slug)"
+
+# 이전 run 의 cleanup 이 구버전이었거나 중간에 실패해 workspace/latest 심링크가
+# dangling(삭제된 state dir 을 가리킴) 상태라면 여기서 자가 치유.
+# crew_latest_dir 은 dangling 을 감지하면 같은 run_id 의 artifact 디렉터리로
+# 심링크를 자동 재바인딩한다. 리턴값은 무시 — 목적은 재바인딩 부수효과.
+crew_latest_dir >/dev/null 2>&1 || true
 # slug 구조:
 #   기본:       ws-<id>/<timestamp>-<pid>-<rand>   ← 같은 workspace 의 모든 run 이 한 폴더 아래
 #   user slug:  ws-<id>/<user_slug>-<timestamp>-<rand>   ← 사용자가 이름을 줘도 항상 유일
