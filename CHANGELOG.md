@@ -5,6 +5,20 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 형식을 따르며, 이 프로젝트는
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) 을 준수합니다.
 
+
+## [0.4.2] - 2026-05-06
+
+### Added
+- /crew-cleanup 슬래시 커맨드 추가
+
+### Fixed
+- release.sh 의 awk 개행 전달 버그 수정
+
+### Other
+- 0.4.x 기준으로 README 재작성
+- Unreleased 섹션 제거 및 release.sh 를 커밋 기반 자동 생성으로 전환
+- CHANGELOG 도입 및 release.sh 자동화 스크립트 추가
+
 ## [0.4.1] - 2026-05-06
 
 ### Fixed
@@ -112,3 +126,4 @@
 [0.3.0]: https://github.com/stomx/crew/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/stomx/crew/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/stomx/crew/releases/tag/v0.2.0
+[0.4.2]: https://github.com/stomx/crew/compare/v0.4.1...v0.4.2
