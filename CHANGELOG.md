@@ -11,6 +11,15 @@
 
 
 
+
+## [0.4.8] - 2026-05-06
+
+### Changed
+- crew-setup 을 health check + 네이티브 위임 방식으로 재설계
+
+### Other
+- .omc/ 는 로컬 artifact 이므로 gitignore 에 추가
+
 ## [0.4.7] - 2026-05-06
 
 ### Changed
@@ -162,3 +171,4 @@
 [0.4.5]: https://github.com/stomx/crew/compare/v0.4.4...v0.4.5
 [0.4.6]: https://github.com/stomx/crew/compare/v0.4.5...v0.4.6
 [0.4.7]: https://github.com/stomx/crew/compare/v0.4.6...v0.4.7
+[0.4.8]: https://github.com/stomx/crew/compare/v0.4.7...v0.4.8
