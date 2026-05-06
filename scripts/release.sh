@@ -102,16 +102,26 @@ done
 # compare 각주
 compare_line="[$NEW_VER]: https://github.com/stomx/crew/compare/${PREV_TAG:-v0.0.0}...${TAG}"
 
-# CHANGELOG 에 새 섹션 삽입 — 첫 "## [" 바로 앞에
+# CHANGELOG 에 새 섹션 삽입 — 첫 "## [" 바로 앞에.
+# new_section 이 개행 포함 문자열이라 awk -v 로 넘길 수 없어 파일로 전달.
+insert_file=$(mktemp)
+printf '%s\n' "$new_section" > "$insert_file"
 tmp=$(mktemp)
-awk -v ins="$new_section" '
-  BEGIN { done=0 }
+awk -v ins_file="$insert_file" '
+  function load_insert(    line, buf) {
+    buf=""
+    while ((getline line < ins_file) > 0) buf = buf line "\n"
+    close(ins_file)
+    return buf
+  }
+  BEGIN { done=0; ins=load_insert() }
   /^## \[/ && !done {
-    print ins
+    printf "%s", ins
     done=1
   }
   { print }
 ' "$CHANGELOG" > "$tmp"
+rm -f "$insert_file"
 
 # compare 각주를 파일 끝에 추가 (중복 방지)
 if ! grep -qF "[$NEW_VER]:" "$tmp"; then
