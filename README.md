@@ -79,11 +79,7 @@ Codex 는 ChatGPT 계정 기준이며 gpt-5.5 / gpt-5.4 만 허용됩니다. 전
 |---|---|
 | `CMUX_WORKSPACE_ID not set` | cmux surface 안에서 Claude Code 를 실행하세요 |
 | Gemini trust modal 이 멈춤 | 자동 dismiss 실패 시 수동으로 한 번 수락 후 재시도 |
-| 잔여 pane 정리 | 아래 cleanup 명령 실행 |
-
-```bash
-~/.claude/plugins/cache/crew/crew/0.4.1/skills/crew/scripts/cleanup.sh all
-```
+| 잔여 pane 정리 | `/crew-cleanup` 실행 (`/crew:cleanup` 도 동일) |
 
 ## 개발
 

@@ -8,6 +8,7 @@
 # Triggers:
 #   /crew [args]         → /crew:crew
 #   /crew-setup          → /crew:setup
+#   /crew-cleanup        → /crew:cleanup
 #   "crew" 키워드 자연어   → /crew:crew (hint only)
 #
 # Keep this fast — 3s timeout in hooks.json.
@@ -42,6 +43,10 @@ case "$PROMPT" in
     emit_context "/crew:setup" "detected /crew-setup — onboarding skill"
     exit 0
     ;;
+  "/crew-cleanup"*|"/crew cleanup"*)
+    emit_context "/crew:cleanup" "detected /crew-cleanup — cleanup skill"
+    exit 0
+    ;;
   "/crew "*|"/crew")
     emit_context "/crew:crew" "detected /crew — visible multi-pane sub-agent"
     exit 0
@@ -53,6 +58,10 @@ lower="$(echo "$PROMPT" | tr '[:upper:]' '[:lower:]')"
 case "$lower" in
   *"crew로 나눠"*|*"crew 로 나눠"*|*"crew 써줘"*|*"crew 로 돌려"*|*"crew 시작"*)
     emit_context "/crew:crew" "natural-language trigger matched crew"
+    exit 0
+    ;;
+  *"crew 정리"*|*"잔여 pane 정리"*|*"crew 청소"*)
+    emit_context "/crew:cleanup" "natural-language trigger matched crew cleanup"
     exit 0
     ;;
 esac
