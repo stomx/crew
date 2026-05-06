@@ -10,6 +10,12 @@
 
 
 
+
+## [0.4.7] - 2026-05-06
+
+### Changed
+- skill 이름을 crew-setup/crew-cleanup 으로 변경해 전역 충돌 방지
+
 ## [0.4.6] - 2026-05-06
 
 ### Fixed
@@ -155,3 +161,4 @@
 [0.4.4]: https://github.com/stomx/crew/compare/v0.4.3...v0.4.4
 [0.4.5]: https://github.com/stomx/crew/compare/v0.4.4...v0.4.5
 [0.4.6]: https://github.com/stomx/crew/compare/v0.4.5...v0.4.6
+[0.4.7]: https://github.com/stomx/crew/compare/v0.4.6...v0.4.7
