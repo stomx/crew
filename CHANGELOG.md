@@ -12,6 +12,12 @@
 
 
 
+
+## [0.4.9] - 2026-05-06
+
+### Fixed
+- Step 1 bash 를 반드시 실행하도록 지침 강화
+
 ## [0.4.8] - 2026-05-06
 
 ### Changed
@@ -172,3 +178,4 @@
 [0.4.6]: https://github.com/stomx/crew/compare/v0.4.5...v0.4.6
 [0.4.7]: https://github.com/stomx/crew/compare/v0.4.6...v0.4.7
 [0.4.8]: https://github.com/stomx/crew/compare/v0.4.7...v0.4.8
+[0.4.9]: https://github.com/stomx/crew/compare/v0.4.8...v0.4.9
