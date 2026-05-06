@@ -1,65 +1,124 @@
 ---
 name: crew-setup
-description: crew plugin 의 초기 온보딩. 설치된 CLI(claude/codex/gemini) 와 cmux 를 감지하고 로그인 상태를 확인, 주력 모델·티어·view_secs 같은 기본값을 사용자와 대화형으로 확정한 뒤 ~/.crew/state/.setup-done 플래그와 ~/.crew/state/overrides.yaml(cli_available 포함) 을 남긴다. cli_available 은 crew 라우팅의 하드 제약. 트리거 — "/crew-setup", "/crew:crew-setup", "crew 초기 설정", "crew setup".
+description: crew plugin 의 초기 온보딩. API key 를 받거나 저장하지 않고, 설치된 CLI(claude/codex/gemini) 의 네이티브 로그인 상태만 검증한 뒤 주력 모델·티어·view_secs·whisper 기본값을 확정하여 ~/.crew/state/ 에 기록한다. 트리거 — "/crew-setup", "/crew:crew-setup", "crew 초기 설정", "crew setup".
 ---
 
 # crew — 초기 설정 (Setup)
 
-이 스킬은 처음 `crew` plugin 을 설치한 사용자가 한 번 돌리면 됩니다. Claude 가 아래 절차를 순차적으로 수행하면서 필요한 지점에서 사용자에게 질문을 던지고 답을 받아 설정을 확정합니다.
+crew plugin 을 처음 쓰거나 CLI 환경이 바뀌었을 때 한 번 실행. 키를 받지 않고, 각 CLI 의 네이티브 인증 상태만 검증한다.
 
-## 절차
+## 절차 개괄
 
-### 1. 환경 감지 (진단만, 수정 없음)
-
-다음을 **한번에 병렬 Bash** 로 확인:
-
-```bash
-echo "=== cmux workspace ==="
-echo "CMUX_WORKSPACE_ID=${CMUX_WORKSPACE_ID:-(not set)}"
-command -v cmux && cmux --version || echo "cmux: MISSING"
-
-echo "=== CLI tools ==="
-for cli in claude codex gemini; do
-  if command -v "$cli" >/dev/null; then
-    echo "$cli: $(command -v $cli)"
-  else
-    echo "$cli: MISSING"
-  fi
-done
-
-echo "=== CLI 로그인 상태 ==="
-# claude
-test -r ~/.claude/.credentials.json && echo "claude: credentials.json 있음" || echo "claude: credentials 없음 (claude /auth 필요할 수 있음)"
-# codex
-codex login status 2>&1 | head -2
-# gemini (auth 섹션 확인)
-test -r ~/.gemini/settings.json && jq -r '.security.auth.selectedType // "unknown"' ~/.gemini/settings.json 2>/dev/null | sed 's/^/gemini auth: /' || echo "gemini: settings.json 없음"
-
-echo "=== 보조 도구 ==="
-for t in jq perl shasum; do
-  command -v "$t" >/dev/null && echo "$t: ok" || echo "$t: MISSING"
-done
+```
+진입 → Silent Health Check (3 CLI 병렬, 각 3초 제한)
+         ├─ 전부 통과 → "✓ claude / ✓ codex / ✓ gemini" + Step 3 진행
+         └─ 일부 실패 → 실패 CLI 만 (a)재연동 안내 / (b)건너뛰기 → Step 3 진행
 ```
 
-### 2. 결과 해석 + 사용자 안내
+## Step 1 — Silent Health Check
 
-출력을 보고 각 항목을 판정:
+아래 bash 를 `Bash` 툴로 실행한다. 결과를 파싱해 `pass` / `fail` / `missing` 을 판정.
 
-- **cmux 없음 / CMUX_WORKSPACE_ID 없음** → 치명적. "cmux 를 설치하고 cmux surface 안에서 Claude Code 를 띄운 뒤 다시 실행하세요" 안내 후 종료
-- **claude/codex/gemini 모두 없음** → crew 를 못 씀. 최소 하나는 필요. 설치 방법 안내:
-  - claude: https://docs.claude.com/code
-  - codex: `npm i -g @openai/codex`
-  - gemini: `npm i -g @google/gemini-cli`
-- **일부만 있음** → 동작은 가능하지만 해당 CLI 를 요구하는 plan 은 skip. 사용자에게 "설치된 것만 쓸 건지, 나머지도 설치할 건지" 질문
-- **codex: Logged in using ChatGPT** → `config/models.yaml` 의 codex 티어를 `gpt-5.5`/`gpt-5.4` 로 유지 (API 전용 모델 사용 불가). 이 결과를 사용자에게 알림
-- **codex: API key** → API 전용 모델(`gpt-5-mini`, `gpt-5-pro` 등)도 허용. 질문: "더 가벼운/무거운 모델 허용되는데 활성화할까요?"
-- **gemini: oauth-personal** → 개인 계정 OAuth. 정상
-- **로그인 없는 CLI** → 사용자에게 수동 로그인 요청:
-  - `! claude` 실행해 로그인 마법사 진입
-  - `! codex login` 로 OAuth/API key 선택
-  - `! gemini /auth` 로 계정 선택
+```bash
+mkdir -p ~/.crew/state
 
-### 3. 사용자 선호 확정 (대화형 질문)
+declare -A RESULT
+
+# --- claude (cmux 번들이므로 바이너리 존재만 확인) ---
+if command -v claude >/dev/null 2>&1; then
+  RESULT[claude]="pass"
+else
+  RESULT[claude]="missing"
+fi
+
+# --- codex (3초 timeout, "Logged in" 포함 여부) ---
+CODEX_OUT=""
+if command -v codex >/dev/null 2>&1; then
+  CODEX_OUT=$(timeout 3 codex login status 2>&1 || true)
+  if echo "$CODEX_OUT" | grep -qi "Logged in"; then
+    RESULT[codex]="pass"
+  else
+    RESULT[codex]="fail"
+  fi
+else
+  RESULT[codex]="missing"
+fi
+
+# --- gemini (3초 timeout, settings.json auth 확인) ---
+if command -v gemini >/dev/null 2>&1; then
+  AUTH_TYPE=""
+  if [ -r ~/.gemini/settings.json ]; then
+    AUTH_TYPE=$(timeout 3 jq -r '.security.auth.selectedType // "none"' ~/.gemini/settings.json 2>/dev/null || echo "none")
+  fi
+  case "$AUTH_TYPE" in
+    oauth-personal)
+      if [ -r ~/.gemini/oauth_creds.json ]; then
+        RESULT[gemini]="pass"
+      else
+        RESULT[gemini]="fail"
+      fi
+      ;;
+    gemini-api-key)
+      if [ -n "${GEMINI_API_KEY:-}" ]; then
+        RESULT[gemini]="pass"
+      else
+        RESULT[gemini]="fail"
+      fi
+      ;;
+    *)
+      RESULT[gemini]="fail"
+      ;;
+  esac
+else
+  RESULT[gemini]="missing"
+fi
+
+# --- 결과 출력 (Claude 가 파싱) ---
+echo "CREW_HEALTH_CLAUDE=${RESULT[claude]}"
+echo "CREW_HEALTH_CODEX=${RESULT[codex]}"
+echo "CREW_HEALTH_GEMINI=${RESULT[gemini]}"
+echo "CREW_CODEX_RAW=$CODEX_OUT"
+echo "CREW_GEMINI_AUTH=${AUTH_TYPE:-none}"
+```
+
+**판정 기준 요약**:
+
+| CLI | pass 조건 |
+|-----|-----------|
+| claude | `command -v claude` 성공 (cmux 번들이라 호스트 세션 인증 공유) |
+| codex | `codex login status` 출력에 "Logged in" 포함 |
+| gemini | `selectedType=oauth-personal` → `oauth_creds.json` 존재, `gemini-api-key` → `$GEMINI_API_KEY` 비어있지 않음 |
+
+전부 pass 시 한 줄 요약만 출력하고 Step 3 으로 바로 진행:
+```
+✓ claude / ✓ codex / ✓ gemini — 모두 정상
+```
+
+## Step 2 — 실패 CLI 개별 처리
+
+`fail` 또는 `missing` 인 CLI 에 대해서만 AskUserQuestion 으로 아래 2지선다를 제시한다.
+
+**질문 형식** (예: codex 실패 시):
+> codex 인증이 확인되지 않습니다.
+> (a) 지금 재연동하겠습니다 — 터미널에서 `! codex login` 을 실행하세요
+> (b) 건너뛰기 — codex 없이 진행
+
+- **(a) 선택 시**: 사용자가 `! codex login` 을 실행 후 "완료" 라고 답하면, Step 1 의 해당 CLI 검증 bash 만 다시 실행하여 재검증.
+- **(b) 선택 시**: 해당 CLI 를 `cli_available` 에서 제외.
+- **missing 인 경우**: 설치 안내도 함께 표시 (`npm i -g @openai/codex` / `npm i -g @google/gemini-cli`).
+
+재연동 명령 레퍼런스:
+
+| CLI | 명령 |
+|-----|------|
+| codex | `! codex login` |
+| gemini | `! gemini` 실행 후 `/auth` 입력 |
+
+> Claude CLI 는 cmux 번들이므로 재연동 대상이 아님. `command -v claude` 실패 시에만 "crew 는 cmux 환경이 필요합니다" 안내 후 종료.
+
+## Step 3 — Preference 질문
+
+AskUserQuestion 으로 4개를 한 묶음으로 제시:
 
 **질문 1 — 주력 모델 조합**:
 > 어떤 CLI 를 주력으로 쓰시겠습니까?
@@ -70,72 +129,69 @@ done
 
 **질문 2 — 기본 티어**:
 > 기본 작업에 어느 수준의 모델을 쓰시겠습니까?
-> (1) fast (비용 우선, haiku/gpt-5.4/flash-lite)
+> (1) fast (비용 우선)
 > (2) standard (균형)
 > (3) deep (성능 우선, 기본값)
-> (4) frontier (최상, opus+max / gpt-5.5+xhigh / 3.1-pro)
+> (4) frontier (최상)
 
 **질문 3 — pane 체류 시간**:
-> pane 이 응답 후 자동 닫히기 전 몇 초 보여줄까요? (0 = 즉시 닫음, 기본 10)
+> pane 응답 후 자동 닫히기 전 몇 초 보여줄까요? (0=즉시, 기본 10)
 
 **질문 4 — 알림 스타일**:
-> crew 진행 상황을 메인 Claude 창에도 띄울까요? (whisper — 기본 off, 권장 off)
+> crew 진행 상황을 메인 Claude 창에도 whisper 할까요? (y/n, 기본 n)
 
-### 4. 설정 저장
+## Step 4 — 저장
 
-답변과 감지 결과를 `$HOME/.crew/state/` 아래 두 파일로 기록:
+검증 결과와 사용자 답변을 아래 두 파일에 기록한다.
 
-**(a) `~/.crew/state/.setup-done`** — 마커 + YAML 로 선택값 저장 (session-start hook 이 이 파일을 보고 재안내 여부 결정):
+```bash
+CLI_AVAILABLE=""  # 쉼표 구분 리스트로 조합 (예: "claude, codex, gemini")
 
-```yaml
-setup_at: <ISO8601>
-setup_version: 1
+cat > ~/.crew/state/.setup-done << 'YEOF'
+setup_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+setup_version: 2
 cli_preference: <a|b|c|d>
 default_tier: <fast|standard|deep|frontier>
 default_view_secs: <int>
 whisper_main: <true|false>
 detected:
   claude: <installed|missing>
-  codex: <installed-chatgpt|installed-apikey|missing>
-  gemini: <installed|missing>
-  cmux: <ok|missing>
-```
+  codex: <oauth|chatgpt|apikey|none|missing>
+  gemini: <oauth-personal|gemini-api-key|none|missing>
+  cmux: ok
+YEOF
 
-**(b) 선택값 + 감지된 CLI 목록을 `$HOME/.crew/state/overrides.yaml` 에 저장**
-
-```yaml
-# ~/.crew/state/overrides.yaml
-cli_available: [claude, codex, gemini]   # 실제 설치·로그인 확인된 것만
+cat > ~/.crew/state/overrides.yaml << 'YEOF'
+cli_available: [claude, codex, gemini]   # 실제 pass 된 것만
 preference:
-  default_tier: <사용자 선택>
+  cli_primary: <a|b|c|d>
+  default_tier: <선택값>
 run_defaults:
   view_secs: <int>
   whisper_main: <bool>
+YEOF
 ```
 
-`cli_available` 는 **crew 라우팅의 하드 제약**. crew:crew SKILL.md 가 plan 을 짤 때 이 목록에 있는 CLI 만 pane.cli 로 쓴다. 파일이 없거나 `cli_available` 키가 없으면 **claude 만 있다고 간주**한다 (안전 기본값).
+실제 저장 시 `<placeholder>` 를 사용자 답변·검증 결과로 치환하여 실행한다.
 
-감지 규칙:
-- **claude**: `command -v claude` 성공 + `claude --version` 정상 출력 → 포함
-- **codex**: `command -v codex` 성공 + `codex login status` 가 "Logged in" 포함 → 포함
-- **gemini**: `command -v gemini` 성공 + `~/.gemini/settings.json` 의 auth 설정 존재 → 포함
+`cli_available` 는 **crew 라우팅의 하드 제약**. 이 목록에 없는 CLI 는 pane.cli 에 배정되지 않는다.
 
-사용자가 "세 개 고루 쓰겠다" 고 해도 실제 로그인 안 된 CLI 는 **제외**한다. 로그인 안내 후 `/crew-setup` 재실행을 권장.
+**detected 분류 기준**:
 
-### 5. 마무리
-
-사용자에게 한 줄 요약:
-
-```
-✓ crew setup 완료
-  · CLI: claude ✓  codex (ChatGPT) ✓  gemini ✓
-  · default tier: deep
-  · view_secs: 10
-  · 이제 /crew 로 써보세요.
-```
+| CLI | 값 | 조건 |
+|-----|---|------|
+| codex | `chatgpt` | "ChatGPT" 키워드 포함 |
+| codex | `apikey` | "API key" 키워드 포함 |
+| codex | `oauth` | 그 외 "Logged in" |
+| codex | `none` | 바이너리 있으나 로그인 안됨 |
+| gemini | `oauth-personal` | selectedType 이 oauth-personal + creds 존재 |
+| gemini | `gemini-api-key` | selectedType 이 gemini-api-key + env 존재 |
+| gemini | `none` | 바이너리 있으나 인증 없음 |
 
 ## 설계 노트
 
-- **이 스킬은 로그인 명령을 직접 실행하지 않음**. 사용자가 `! codex login` 같이 본인 터미널에서 실행하도록 안내만 함. 이유: OAuth 리다이렉트·토큰 저장 등이 사용자 개입 없이 안전하게 자동화되지 않음.
-- **plugin 디렉토리 자체를 수정하지 않음**. plugin 은 git-managed 이므로 사용자별 override 는 `state/overrides.yaml` 로 격리.
-- **재실행 허용**. 사용자가 환경 바뀌면 `/crew-setup` 을 다시 돌려 `.setup-done` 을 덮어씀.
+- **키 저장 금지**: setup 은 API key 를 절대 받지 않고, 저장하지도 않는다. 각 CLI 의 네이티브 인증 시스템(OAuth, credential file, env var) 에 전적으로 위임하고, crew 는 존재·유효성만 읽는다.
+- **Claude CLI 는 항상 skip**: cmux workspace 안에서 실행되므로 호스트 세션의 Anthropic 인증을 그대로 공유한다. 별도 로그인 검증이 불필요.
+- **3초 timeout**: CLI 가 네트워크 호출을 하거나 hang 걸릴 때 setup 전체가 블록되지 않도록 보호.
+- **재실행 허용**: 환경이 바뀌면 `/crew-setup` 을 다시 돌려 `.setup-done` 과 `overrides.yaml` 을 덮어쓴다.
+- **plugin 디렉토리 미수정**: plugin 은 git-managed. 사용자별 상태는 `~/.crew/state/` 로 격리.
