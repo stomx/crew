@@ -6,6 +6,12 @@
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) 을 준수합니다.
 
 
+
+## [0.4.3] - 2026-05-06
+
+### Fixed
+- cleanup 이 latest 심링크를 artifact 로 재바인딩해 이어가기 보존
+
 ## [0.4.2] - 2026-05-06
 
 ### Added
@@ -127,3 +133,4 @@
 [0.2.1]: https://github.com/stomx/crew/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/stomx/crew/releases/tag/v0.2.0
 [0.4.2]: https://github.com/stomx/crew/compare/v0.4.1...v0.4.2
+[0.4.3]: https://github.com/stomx/crew/compare/v0.4.2...v0.4.3
