@@ -1,6 +1,6 @@
 ---
 name: setup
-description: crew plugin 의 초기 온보딩. 설치된 CLI(claude/codex/gemini) 와 cmux 를 감지하고 로그인 상태를 확인, 주력 모델·티어·view_secs 같은 기본값을 사용자와 대화형으로 확정한 뒤 ~/.claude/skills/crew/state/.setup-done 플래그를 남긴다. 트리거 — "/crew-setup", "/crew:setup", "crew 초기 설정", "crew setup".
+description: crew plugin 의 초기 온보딩. 설치된 CLI(claude/codex/gemini) 와 cmux 를 감지하고 로그인 상태를 확인, 주력 모델·티어·view_secs 같은 기본값을 사용자와 대화형으로 확정한 뒤 ~/.crew/state/.setup-done 플래그와 ~/.crew/state/overrides.yaml(cli_available 포함) 을 남긴다. cli_available 은 crew 라우팅의 하드 제약. 트리거 — "/crew-setup", "/crew:setup", "crew 초기 설정", "crew setup".
 ---
 
 # crew — 초기 설정 (Setup)
@@ -83,12 +83,11 @@ done
 
 ### 4. 설정 저장
 
-답변을 다음 두 곳에 반영:
+답변과 감지 결과를 `$HOME/.crew/state/` 아래 두 파일로 기록:
 
-**(a) `~/.claude/skills/crew/state/.setup-done`** — 마커 + YAML 로 선택값 저장:
+**(a) `~/.crew/state/.setup-done`** — 마커 + YAML 로 선택값 저장 (session-start hook 이 이 파일을 보고 재안내 여부 결정):
 
 ```yaml
-# 이 파일이 있으면 session-start hook 이 onboarding 안내를 띄우지 않음
 setup_at: <ISO8601>
 setup_version: 1
 cli_preference: <a|b|c|d>
@@ -102,11 +101,11 @@ detected:
   cmux: <ok|missing>
 ```
 
-**(b) (선택) 사용자에게 물어 본 결과에 따라 `$CLAUDE_PLUGIN_ROOT/skills/crew/config/models.yaml` 의 `preference.default_tier` 값 갱신**
-→ plugin 디렉토리는 read-only 가 원칙이라, **override 는 state/overrides.yaml 에 저장**:
+**(b) 선택값 + 감지된 CLI 목록을 `$HOME/.crew/state/overrides.yaml` 에 저장**
 
 ```yaml
-# ~/.claude/skills/crew/state/overrides.yaml
+# ~/.crew/state/overrides.yaml
+cli_available: [claude, codex, gemini]   # 실제 설치·로그인 확인된 것만
 preference:
   default_tier: <사용자 선택>
 run_defaults:
@@ -114,7 +113,14 @@ run_defaults:
   whisper_main: <bool>
 ```
 
-crew/run.sh 는 이 파일이 있으면 `$CREW_VIEW_SECS` / `$CREW_WHISPER_MAIN` 환경변수처럼 읽어 쓰도록 나중에 보강 가능. 현 버전은 state dir 에 기록만 남겨두면 충분.
+`cli_available` 는 **crew 라우팅의 하드 제약**. crew:crew SKILL.md 가 plan 을 짤 때 이 목록에 있는 CLI 만 pane.cli 로 쓴다. 파일이 없거나 `cli_available` 키가 없으면 **claude 만 있다고 간주**한다 (안전 기본값).
+
+감지 규칙:
+- **claude**: `command -v claude` 성공 + `claude --version` 정상 출력 → 포함
+- **codex**: `command -v codex` 성공 + `codex login status` 가 "Logged in" 포함 → 포함
+- **gemini**: `command -v gemini` 성공 + `~/.gemini/settings.json` 의 auth 설정 존재 → 포함
+
+사용자가 "세 개 고루 쓰겠다" 고 해도 실제 로그인 안 된 CLI 는 **제외**한다. 로그인 안내 후 `/crew-setup` 재실행을 권장.
 
 ### 5. 마무리
 

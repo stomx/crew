@@ -25,7 +25,20 @@ description: cmux pane 기반 가시 서브에이전트. 메인 Claude 가 프�
 
 ### 1. 라우팅 결정 (메인 Claude 가 직접 판단)
 
-프롬프트를 읽고 다음 질문에 답해 pane 구성을 설계한다:
+**0단계 — 사용 가능한 CLI 확인 (하드 제약)**. 라우팅 자체보다 먼저 해야 한다.
+
+```bash
+# ~/.crew/state/overrides.yaml 의 cli_available 목록을 읽는다.
+test -f ~/.crew/state/overrides.yaml && \
+  awk '/^cli_available:/,/^[^ -]/' ~/.crew/state/overrides.yaml
+```
+
+- 파일이 있고 `cli_available: [ ... ]` 목록이 있으면 **그 안의 CLI 만 plan.panes[].cli 로 쓸 수 있다**.
+- 파일이 없거나 `cli_available` 가 비어 있으면 **claude 만 사용 가능한 환경** 으로 간주 (안전 기본값).
+- 이 제약은 프롬프트 특성과 무관하게 **선행 적용**. 예컨대 사용자 질문이 "교차 검증" 을 요구해도 codex/gemini 가 없는 환경이면 claude-only 로 plan 을 짠다.
+- 사용자가 감지되지 않은 CLI 를 명시적으로 요청(예: "codex 로 검토해줘") 하면 실행 전에 `/crew-setup` 재실행을 안내.
+
+그 후 프롬프트를 읽고 다음 질문에 답해 pane 구성을 설계한다 (사용 가능 CLI 안에서):
 
 - 작업 성향이 무엇인가? (agentic coding / 백엔드 추론 / 탐색·대안)
 - 얼마나 깊게 생각해야 하는가? (사용자 선호: **기본 높은 effort**, deep 부터 시작)
