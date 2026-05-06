@@ -1,0 +1,60 @@
+{
+  "slug": "weather-methods-5c",
+  "panes": [
+    {
+      "id": 1,
+      "cli": "claude",
+      "model": "opus",
+      "effort": "high",
+      "role": "체계 분류",
+      "prompt_file": "/tmp/crew.pane1.weather.txt",
+      "stage": 1
+    },
+    {
+      "id": 2,
+      "cli": "codex",
+      "model": "gpt-5.5",
+      "effort": "high",
+      "role": "데이터 소스",
+      "prompt_file": "/tmp/crew.pane2.weather.txt",
+      "stage": 1
+    },
+    {
+      "id": 3,
+      "cli": "gemini",
+      "model": "gemini-2.5-pro",
+      "role": "UX 대안",
+      "prompt_file": "/tmp/crew.pane3.weather.txt",
+      "stage": 1
+    },
+    {
+      "id": 4,
+      "cli": "claude",
+      "model": "sonnet",
+      "effort": "high",
+      "role": "일상 루틴",
+      "prompt_file": "/tmp/crew.pane4.weather.txt",
+      "stage": 1
+    },
+    {
+      "id": 5,
+      "cli": "gemini",
+      "model": "gemini-2.5-flash",
+      "role": "속도 요약",
+      "prompt_file": "/tmp/crew.pane5.weather.txt",
+      "stage": 1
+    }
+  ],
+  "caller_surface": "D82BBB23-AFB0-41D6-831C-003D4866EE53",
+  "surfaces": [
+    "D82BBB23-AFB0-41D6-831C-003D4866EE53",
+    "surface:277",
+    "surface:278",
+    "surface:279",
+    "surface:280",
+    "surface:281"
+  ],
+  "report_surface": "surface:282",
+  "log_file": "/Users/searchdoc/.crew/state/weather-methods-5c/crew.log",
+  "created_at": "2026-05-05T14:12:05Z"
+}

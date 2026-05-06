@@ -1,6 +1,6 @@
 ---
-name: cleanup
-description: crew 가 띄웠던 잔여 pane 과 끊어진 세션 디렉터리를 정리하는 스킬. 정상 종료되지 않은 run 이후 workspace 에 crew 자식 pane 이 남아있거나, `~/.crew/state/ws-*/run-*/` 이 고아 상태일 때 호출한다. 트리거 — "/crew-cleanup", "/crew:cleanup", "crew 정리", "잔여 pane 정리".
+name: crew-cleanup
+description: crew 가 띄웠던 잔여 pane 과 끊어진 세션 디렉터리를 정리하는 스킬. 정상 종료되지 않은 run 이후 workspace 에 crew 자식 pane 이 남아있거나, `~/.crew/state/ws-*/run-*/` 이 고아 상태일 때 호출한다. 트리거 — "/crew-cleanup", "/crew:crew-cleanup", "crew 정리", "잔여 pane 정리".
 ---
 
 # crew — cleanup

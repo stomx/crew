@@ -230,7 +230,7 @@ cmux surface 바깥에서 실행한 경우. cmux workspace 안에서 Claude Code
 403/404 발생 시 메인이 plan 을 수정해 `gemini-2.5-pro` 로 폴백하고 재실행.
 
 ### pane 이 지저분하게 남아있음
-`/crew-cleanup` (또는 `/crew:cleanup`) 을 실행한다. 내부적으로
+`/crew-cleanup` (또는 `/crew:crew-cleanup`) 을 실행한다. 내부적으로
 `$CLAUDE_PLUGIN_ROOT/skills/crew/scripts/cleanup.sh all` 을 호출한다.
 
 ### Claude pane 에 `--effort` 가 안 먹는 느낌

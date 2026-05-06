@@ -1,6 +1,6 @@
 ---
-name: setup
-description: crew plugin 의 초기 온보딩. 설치된 CLI(claude/codex/gemini) 와 cmux 를 감지하고 로그인 상태를 확인, 주력 모델·티어·view_secs 같은 기본값을 사용자와 대화형으로 확정한 뒤 ~/.crew/state/.setup-done 플래그와 ~/.crew/state/overrides.yaml(cli_available 포함) 을 남긴다. cli_available 은 crew 라우팅의 하드 제약. 트리거 — "/crew-setup", "/crew:setup", "crew 초기 설정", "crew setup".
+name: crew-setup
+description: crew plugin 의 초기 온보딩. 설치된 CLI(claude/codex/gemini) 와 cmux 를 감지하고 로그인 상태를 확인, 주력 모델·티어·view_secs 같은 기본값을 사용자와 대화형으로 확정한 뒤 ~/.crew/state/.setup-done 플래그와 ~/.crew/state/overrides.yaml(cli_available 포함) 을 남긴다. cli_available 은 crew 라우팅의 하드 제약. 트리거 — "/crew-setup", "/crew:crew-setup", "crew 초기 설정", "crew setup".
 ---
 
 # crew — 초기 설정 (Setup)

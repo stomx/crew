@@ -7,8 +7,8 @@
 #
 # Triggers:
 #   /crew [args]         → /crew:crew
-#   /crew-setup          → /crew:setup
-#   /crew-cleanup        → /crew:cleanup
+#   /crew-setup          → /crew:crew-setup
+#   /crew-cleanup        → /crew:crew-cleanup
 #   "crew" 키워드 자연어   → /crew:crew (hint only)
 #
 # Keep this fast — 3s timeout in hooks.json.
@@ -40,11 +40,11 @@ Fallback: open the skill SKILL.md file at \$CLAUDE_PLUGIN_ROOT/skills/<name>/SKI
 # Match explicit slash forms first (most specific)
 case "$PROMPT" in
   "/crew-setup"*|"/crew setup"*)
-    emit_context "/crew:setup" "detected /crew-setup — onboarding skill"
+    emit_context "/crew:crew-setup" "detected /crew-setup — onboarding skill"
     exit 0
     ;;
   "/crew-cleanup"*|"/crew cleanup"*)
-    emit_context "/crew:cleanup" "detected /crew-cleanup — cleanup skill"
+    emit_context "/crew:crew-cleanup" "detected /crew-cleanup — cleanup skill"
     exit 0
     ;;
   "/crew "*|"/crew")
@@ -61,7 +61,7 @@ case "$lower" in
     exit 0
     ;;
   *"crew 정리"*|*"잔여 pane 정리"*|*"crew 청소"*)
-    emit_context "/crew:cleanup" "natural-language trigger matched crew cleanup"
+    emit_context "/crew:crew-cleanup" "natural-language trigger matched crew cleanup"
     exit 0
     ;;
 esac
