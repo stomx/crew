@@ -128,6 +128,37 @@ EOF
 
 stage 2 pane 은 `share_from` 에 명시된 상위 pane slot 을 프롬프트 앞에 자동 주입 후 본 프롬프트 실행.
 
+## 멀티플렉서 설정
+
+### cmux 설정
+
+1. [cmux.app](https://cmux.app) 에서 DMG 다운로드 후 설치
+2. cmux 앱 실행 → workspace 생성
+3. workspace 내 터미널에서 Claude Code 실행
+
+확인: `echo $CMUX_WORKSPACE_ID` — 값이 출력되면 정상.
+
+### tmux 설정
+
+```bash
+# 설치
+brew install tmux        # macOS
+# 또는
+sudo apt install tmux    # Ubuntu/Debian
+
+# 세션 생성 + 진입
+tmux new-session -s work
+
+# 이미 세션이 있으면
+tmux attach -t work
+```
+
+확인: `echo $TMUX` — 경로가 출력되면 정상.
+
+tmux 안에서 Claude Code 를 실행하면 crew 가 자동으로 tmux 모드로 동작.
+
+> cmux 와 tmux 모두 설치된 경우 cmux 가 우선. tmux 만 쓰려면 cmux workspace 바깥에서 실행.
+
 ## 모드별 동작
 
 ### cmux 모드
