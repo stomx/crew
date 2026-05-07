@@ -7,7 +7,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 SLUG="${1:?slug required}"
@@ -47,7 +47,7 @@ mkdir -p "$(dirname "$SLOT")"
   echo '## pane capture'
   echo
   echo '```'
-  cmux read-screen --surface "$SURFACE" --scrollback --lines 6000 2>/dev/null || true
+  mux_read_scrollback "$SURFACE" 6000 || true
   echo '```'
 } > "$SLOT"
 

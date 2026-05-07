@@ -17,8 +17,13 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
+
+# 멀티플렉서 없으면 인라인 폴백으로 위임
+if [[ "$CREW_MUX" == "inline" ]]; then
+  exec "$HERE/inline-run.sh" "$@"
+fi
 
 PLAN_INPUT="${1:?plan JSON path (or -) required}"
 IDLE_SECS="${2:-5}"
@@ -120,7 +125,7 @@ report() {
   # Default OFF because the report pane already shows this live and writing
   # to the main TUI's textarea pollutes the active Claude Code session.
   if [[ "${CREW_WHISPER_MAIN:-0}" == "1" && -n "${MAIN_SURFACE:-}" ]]; then
-    cmux send --surface "$MAIN_SURFACE" "$line" >/dev/null 2>&1 || true
+    mux_send "$MAIN_SURFACE" "$line" 2>/dev/null || true
   fi
 }
 
@@ -174,7 +179,7 @@ pane_worker() {
   slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
   mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
   new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
-  cmux rename-tab --surface "$surface" "$new_label" >/dev/null 2>&1 || true
+  mux_rename "$surface" "$new_label" || true
   echo "[$(date +%H:%M:%S)]   ← pane-$pane_idx ($cli $model) status=$status → $slot" >> "$LOG_FILE"
 }
 

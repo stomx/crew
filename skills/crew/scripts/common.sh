@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# crew common helpers (cmux-native, inspired by ccg-panel)
+# crew common helpers
 #
-# crew 는 cmux workspace 안에 N 개의 interactive CLI pane 을 띄워서
+# crew 는 멀티플렉서(cmux/tmux) 안에 N 개의 interactive CLI pane 을 띄워서
 # 메인 Claude 가 라우팅 결정을 기반으로 각 pane 에 다른 모델/티어를 배정하고
 # 완료 후 결과를 합성해 보고하는 스킬.
 
 set -u
+
+HERE_COMMON="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=./mux.sh
+source "$HERE_COMMON/mux.sh"
 
 # State (per-session manifest/slots) defaults under the user's home.
 # Override with CREW_STATE_DIR if you want it elsewhere.
@@ -14,19 +18,8 @@ CREW_STATE_DIR="${CREW_STATE_DIR:-$HOME/.crew/state}"
 # CREW_ARTIFACT_DIR 환경변수로 명시.
 CREW_ARTIFACT_DIR="${CREW_ARTIFACT_DIR:-$HOME/.crew/artifacts}"
 
-crew_require_cmux() {
-  if ! command -v cmux >/dev/null 2>&1; then
-    echo "error: cmux CLI not found on PATH" >&2
-    echo "  hint: install cmux (macOS: cmux.app), or add its bin dir to PATH." >&2
-    return 2
-  fi
-  if [[ -z "${CMUX_WORKSPACE_ID:-}" ]]; then
-    echo "error: CMUX_WORKSPACE_ID not set" >&2
-    echo "  hint: run this from inside a cmux workspace pane. Opening Claude Code" >&2
-    echo "  in a regular terminal will not work — cmux must be the outer shell." >&2
-    return 3
-  fi
-}
+# 하위 호환: 기존 스크립트가 crew_require_cmux 를 호출해도 동작
+crew_require_cmux() { crew_require_mux; }
 
 crew_have() {
   command -v "$1" >/dev/null 2>&1
@@ -36,11 +29,11 @@ crew_timestamp() {
   date +%Y%m%d-%H%M%S
 }
 
-# Workspace 단위 slug 접두사. 같은 cmux workspace 에서 호출된 모든 crew
-# run 은 이 접두사 아래 모인다. CMUX_WORKSPACE_ID 가 없으면 'default'.
+# Workspace 단위 slug 접두사. 같은 멀티플렉서 세션에서 호출된 모든 crew
+# run 은 이 접두사 아래 모인다.
 crew_workspace_slug() {
-  local w="${CMUX_WORKSPACE_ID:-default}"
-  # UUID 앞 8자만 (가독성). 특수 문자는 '-' 로 치환.
+  local w
+  w="$(mux_workspace_id)"
   local prefix="${w:0:8}"
   echo "ws-${prefix//[^A-Za-z0-9]/-}"
 }
@@ -147,9 +140,13 @@ crew_resolve_share_ref() {
   esac
 }
 
-# Parse "surface:NN" out of a cmux response line.
+# Parse surface ID from mux output. cmux: "surface:NN", tmux: "%N" (그대로 통과).
 crew_parse_surface() {
-  awk '/surface:[0-9]+/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/) { print $i; exit } }'
+  case "$CREW_MUX" in
+    cmux) awk '/surface:[0-9]+/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/) { print $i; exit } }' ;;
+    tmux) awk 'NF {print $1; exit}' ;;
+    *)    cat ;;
+  esac
 }
 
 # Session dir lives under state/<slug>/
@@ -195,13 +192,13 @@ crew_wait_ready() {
   local start=$(date +%s)
   while :; do
     local screen
-    screen="$(cmux read-screen --surface "$surface" 2>/dev/null || true)"
+    screen="$(mux_read_screen "$surface" || true)"
     if echo "$screen" | grep -qE "$pattern"; then
       return 0
     fi
     # Gemini trust dialog can appear mid-boot — dismiss on the fly.
     if [[ "$cli" == "gemini" ]] && echo "$screen" | grep -qi "trust the files in this folder"; then
-      cmux send-key --surface "$surface" Enter >/dev/null 2>&1 || true
+      mux_send_key "$surface" Enter || true
     fi
     if (( $(date +%s) - start >= max_wait )); then
       return 1

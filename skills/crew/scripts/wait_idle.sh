@@ -19,7 +19,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 
 SURFACE="${1:?surface ref required}"
 IDLE_SECS="${2:-5}"
@@ -30,13 +30,13 @@ POLL_INTERVAL="${CREW_POLL_INTERVAL:-${POLL_INTERVAL:-0.5}}"
 
 hash_surface() {
   local viewport scrollback
-  viewport="$(cmux read-screen --surface "$SURFACE" 2>/dev/null | shasum -a 256 | awk '{print $1}')"
-  scrollback="$(cmux read-screen --surface "$SURFACE" --scrollback --lines 200 2>/dev/null | shasum -a 256 | awk '{print $1}')"
+  viewport="$(mux_read_screen "$SURFACE" | shasum -a 256 | awk '{print $1}')"
+  scrollback="$(mux_read_scrollback "$SURFACE" 200 | shasum -a 256 | awk '{print $1}')"
   echo "${viewport}-${scrollback}"
 }
 
 viewport_text() {
-  cmux read-screen --surface "$SURFACE" 2>/dev/null || true
+  mux_read_screen "$SURFACE" || true
 }
 
 # Per-CLI "response complete" detector. Returns 0 if viewport shows both a

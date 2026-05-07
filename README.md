@@ -10,7 +10,10 @@ cmux workspace 안에 여러 LLM pane 을 띄워 병렬 실행하고 결과를 �
 
 ## 요구사항
 
-- macOS + [cmux](https://cmux.app) 앱 (DMG 다운로드 설치). `cmux` CLI 는 앱 설치 시 번들로 포함된다. cmux workspace 의 터미널 surface(`CMUX_WORKSPACE_ID` 가 설정된 환경) 안에서 Claude Code 를 실행해야 한다.
+- 터미널 멀티플렉서 (택 1, 또는 없이 인라인):
+  - [cmux](https://cmux.app) (macOS, 권장) — DMG 설치. `cmux` CLI 번들 포함. cmux workspace surface 안에서 Claude Code 를 실행해야 한다.
+  - [tmux](https://github.com/tmux/tmux) — `brew install tmux` / `apt install tmux`. tmux 세션 안에서 Claude Code 를 실행해야 한다.
+  - **인라인 폴백** — 멀티플렉서 없이도 동작. 각 CLI 의 비대화형 모드(`claude -p`, `codex exec`, `gemini -p`)를 subprocess 로 호출한다. pane 시각화는 없지만 staged 실행과 `share_from` 은 동일하게 지원.
 - 보조 도구: `bash`, `jq`, `perl`, `shasum`
 - (선택) `coreutils` — `/crew-setup` 의 `timeout` 명령을 안정화한다. `brew install coreutils`
 - 최소 하나 이상의 CLI:
@@ -71,8 +74,8 @@ ChatGPT 계정 Codex 는 `gpt-5.5` / `gpt-5.4` 만 허용. 티어 선택 기준�
 
 **먼저 로그부터**: `~/.crew/state/ws-*/<run_id>/crew.log` 에 각 run 의 stage 진행이 기록된다. 실패 시 가장 마지막 몇 줄이 원인 단서다.
 
-**`CMUX_WORKSPACE_ID not set`**
-cmux workspace 바깥에서 Claude Code 를 띄운 경우. cmux 안에서 실행한 후 재시도.
+**pane 시각화 없이 실행됨**
+cmux/tmux 가 감지되지 않으면 자동으로 인라인 모드(subprocess)로 폴백한다. pane 을 직접 보며 개입하고 싶다면 cmux 또는 tmux 안에서 실행.
 
 **잔여 pane 정리**
 `/crew-cleanup` 실행. 세부 옵션은 [USAGE.md](./USAGE.md#수동-실행-레퍼런스) 참고.

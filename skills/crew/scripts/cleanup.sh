@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
 close_from_manifest() {
@@ -33,7 +33,7 @@ close_from_manifest() {
   surfaces="$(jq -r '.surfaces[1:] | .[]' "$manifest")"
   while IFS= read -r s; do
     [[ -z "$s" ]] && continue
-    if cmux close-surface --surface "$s" >/dev/null 2>&1; then
+    if mux_close "$s"; then
       echo "closed child: $s"
     else
       echo "could not close child: $s (already gone?)"
@@ -44,7 +44,7 @@ close_from_manifest() {
   local report_surface
   report_surface="$(jq -r '.report_surface // empty' "$manifest")"
   if [[ -n "$report_surface" ]]; then
-    if cmux close-surface --surface "$report_surface" >/dev/null 2>&1; then
+    if mux_close "$report_surface"; then
       echo "closed report: $report_surface"
     else
       echo "could not close report: $report_surface (already gone?)"
@@ -77,10 +77,10 @@ close_from_manifest() {
 close_orphan_panes() {
   # Close any pane whose visible process is `tail -f .../crew.log` — that's a
   # stray report pane.
-  cmux list-panels 2>/dev/null | awk '/tail -f .*\/crew\.log/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/) { print $i; exit } }' \
+  mux_list_panels | awk '/tail -f .*\/crew\.log/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/ || $i ~ /^%/) { print $i; exit } }' \
     | while read -r s; do
         [[ -z "$s" ]] && continue
-        if cmux close-surface --surface "$s" >/dev/null 2>&1; then
+        if mux_close "$s"; then
           echo "closed orphan report: $s"
         fi
       done

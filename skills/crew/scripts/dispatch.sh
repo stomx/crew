@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 
 SLUG="${1:?slug required}"
 PANE_IDX="${2:?pane index required (1-based)}"
@@ -30,9 +30,9 @@ SURFACE="$(jq -r --argjson idx "$PANE_IDX" '.surfaces[$idx] // empty' "$MANIFEST
 CLEAN="$(mktemp -t crew-prompt.XXXXXX)"
 perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "$CLEAN"
 
-cmux send --surface "$SURFACE" "$(cat "$CLEAN")" >/dev/null
+mux_send "$SURFACE" "$(cat "$CLEAN")"
 sleep 0.4
-cmux send-key --surface "$SURFACE" Enter >/dev/null
+mux_send_key "$SURFACE" Enter
 
 BYTES="$(wc -c <"$PROMPT_FILE" | awk '{print $1}')"
 
@@ -47,16 +47,16 @@ if [[ -n "$FINGERPRINT" ]]; then
   ok=0
   for attempt in 1 2 3; do
     sleep 1.2
-    screen="$(cmux read-screen --surface "$SURFACE" 2>/dev/null || true)"
+    screen="$(mux_read_screen "$SURFACE" || true)"
     if echo "$screen" | grep -qF "$FINGERPRINT"; then
       ok=1; break
     fi
     # retry: re-inject on attempt 2 (attempt 3 is just a final poll)
     if (( attempt == 2 )); then
       perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "${PROMPT_FILE}.retry"
-      cmux send --surface "$SURFACE" "$(cat "${PROMPT_FILE}.retry")" >/dev/null
+      mux_send "$SURFACE" "$(cat "${PROMPT_FILE}.retry")"
       sleep 0.4
-      cmux send-key --surface "$SURFACE" Enter >/dev/null
+      mux_send_key "$SURFACE" Enter
       rm -f "${PROMPT_FILE}.retry"
     fi
   done

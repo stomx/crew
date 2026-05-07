@@ -24,7 +24,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
 source "$HERE/common.sh"
 
-crew_require_cmux
+crew_require_mux
 
 PLAN_INPUT="${1:?plan JSON path or - for stdin}"
 
@@ -74,7 +74,7 @@ LOG_FILE="$(crew_log_path "$SLUG")"
 : > "$LOG_FILE"
 echo "[$(date +%H:%M:%S)] crew session $SLUG starting with $N panes" >> "$LOG_FILE"
 
-CALLER_SURFACE="${CMUX_SURFACE_ID:-}"
+CALLER_SURFACE="$(mux_caller_surface)"
 
 # Validate each CLI is installed before spawning any pane
 for i in $(seq 0 $((N - 1))); do
@@ -114,8 +114,7 @@ SURFACES[0]="$CALLER_SURFACE"
 
 spawn_pane() {
   local direction="$1" from_surface="$2"
-  cmux new-split "$direction" --surface "$from_surface" 2>&1 \
-    | crew_parse_surface
+  mux_new_split "$direction" "$from_surface" | crew_parse_surface
 }
 
 for i in $(seq 0 $((N - 1))); do
@@ -130,7 +129,7 @@ for i in $(seq 0 $((N - 1))); do
     echo "error: could not spawn pane $((i+1))" >&2
     # Cleanup what we already made
     for s in "${SURFACES[@]:1}"; do
-      [[ -n "$s" ]] && cmux close-surface --surface "$s" >/dev/null 2>&1 || true
+      [[ -n "$s" ]] && mux_close "$s" || true
     done
     exit 6
   fi
@@ -146,7 +145,7 @@ for i in $(seq 0 $((N - 1))); do
   [[ -n "$pane_cli" ]]   && label="$label · $pane_cli"
   [[ -n "$pane_model" ]] && label="$label:$pane_model"
   [[ -n "$pane_role" ]]  && label="$label — $pane_role"
-  cmux rename-tab --surface "$new_surface" "$label" >/dev/null 2>&1 || true
+  mux_rename "$new_surface" "$label" || true
 done
 
 # Give shells a beat
@@ -184,8 +183,8 @@ for i in $(seq 0 $((N - 1))); do
       ;;
   esac
 
-  cmux send     --surface "$surface" "$cmd" >/dev/null
-  cmux send-key --surface "$surface" Enter   >/dev/null
+  mux_send "$surface" "$cmd"
+  mux_send_key "$surface" Enter
 done
 
 # Ready-wait is deferred to run.sh: it polls each pane right before dispatching
@@ -195,12 +194,12 @@ done
 # Spawn a report pane (below the caller) running `tail -f <log>` so the user
 # sees a live stream of crew events — launch, idle, capture, done.
 REPORT_SURFACE=""
-REPORT_SURFACE="$(cmux new-split down --surface "$CALLER_SURFACE" 2>&1 | crew_parse_surface || true)"
+REPORT_SURFACE="$(mux_new_split down "$CALLER_SURFACE" | crew_parse_surface || true)"
 if [[ -n "$REPORT_SURFACE" ]]; then
-  cmux rename-tab --surface "$REPORT_SURFACE" "crew · report ($SLUG)" >/dev/null 2>&1 || true
+  mux_rename "$REPORT_SURFACE" "crew · report ($SLUG)" || true
   sleep 0.5
-  cmux send     --surface "$REPORT_SURFACE" "tail -f $LOG_FILE" >/dev/null
-  cmux send-key --surface "$REPORT_SURFACE" Enter >/dev/null
+  mux_send "$REPORT_SURFACE" "tail -f $LOG_FILE"
+  mux_send_key "$REPORT_SURFACE" Enter
 else
   echo "warning: report pane could not be spawned" >&2
 fi
