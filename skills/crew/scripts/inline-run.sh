@@ -144,30 +144,45 @@ run_cli() {
   prompt_tmp="$(mktemp -t crew-inline-prompt.XXXXXX)"
   printf '%s' "$prompt" > "$prompt_tmp"
 
+  local stderr_tmp
+  stderr_tmp="$(mktemp -t crew-inline-stderr.XXXXXX)"
+
   case "$cli" in
     claude)
       local cmd_args=(-p -)
       [[ -n "$model" ]]  && cmd_args+=(--model "$model")
       [[ -n "$effort" ]] && cmd_args+=(--effort "$effort")
-      cmd_output="$(timeout "$MAX_SECS" claude "${cmd_args[@]}" < "$prompt_tmp" 2>&1)" || exit_code=$?
+      cmd_output="$(timeout "$MAX_SECS" claude "${cmd_args[@]}" < "$prompt_tmp" 2>"$stderr_tmp")" || exit_code=$?
       ;;
     codex)
       local cmd_args=(exec -)
       [[ -n "$model" ]]  && cmd_args+=(-m "$model")
       [[ -n "$effort" ]] && cmd_args+=(-c "model_reasoning_effort=$effort")
-      cmd_output="$(timeout "$MAX_SECS" codex "${cmd_args[@]}" < "$prompt_tmp" 2>&1)" || exit_code=$?
+      cmd_output="$(timeout "$MAX_SECS" codex "${cmd_args[@]}" < "$prompt_tmp" 2>"$stderr_tmp")" || exit_code=$?
       ;;
     gemini)
       local cmd_args=(-p -)
       [[ -n "$model" ]] && cmd_args+=(-m "$model")
-      cmd_output="$(timeout "$MAX_SECS" gemini "${cmd_args[@]}" < "$prompt_tmp" 2>&1)" || exit_code=$?
+      cmd_output="$(timeout "$MAX_SECS" gemini "${cmd_args[@]}" < "$prompt_tmp" 2>"$stderr_tmp")" || exit_code=$?
       ;;
     *)
       cmd_output="error: unknown cli '$cli'"
       exit_code=1
       ;;
   esac
-  rm -f "$prompt_tmp"
+  # 에러 시 stderr 내용을 응답에 포함 (인증 실패 등 진단용)
+  if (( exit_code != 0 )) && [[ -s "$stderr_tmp" ]]; then
+    cmd_output="${cmd_output:+$cmd_output
+}[stderr] $(cat "$stderr_tmp")"
+  fi
+  rm -f "$prompt_tmp" "$stderr_tmp"
+
+  # gemini -p 는 JSON 을 출력. .response 필드만 추출.
+  if [[ "$cli" == "gemini" && -n "$cmd_output" ]]; then
+    local parsed
+    parsed="$(echo "$cmd_output" | jq -r '.response // empty' 2>/dev/null || true)"
+    [[ -n "$parsed" ]] && cmd_output="$parsed"
+  fi
 
   if (( exit_code == 124 )); then
     status="timeout"
