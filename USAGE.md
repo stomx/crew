@@ -180,7 +180,7 @@ tmux 안에서 Claude Code 를 실행하면 crew 가 자동으로 tmux 모드로
 - 감지: cmux/tmux 모두 없음
 - pane 생성 없이 CLI 의 비대화형 모드를 subprocess 로 직접 호출:
   - `claude -p - --model X --effort Y`
-  - `codex exec - -m X`
+  - `codex exec - -m X -c model_reasoning_effort=Y`
   - `gemini -p - -m X`
 - staged 실행 + `share_from` 동일 지원
 - stderr 분리 (에러 시 `[stderr]` 프리픽스로 slot 에 포함)
