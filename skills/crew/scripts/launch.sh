@@ -162,19 +162,17 @@ for i in $(seq 0 $((N - 1))); do
   cmd=""
   case "$cli" in
     claude)
-      cmd="claude --dangerously-skip-permissions"
+      cmd="ENABLE_PROMPT_CACHING_1H=0 FORCE_PROMPT_CACHING_5M=0 claude --dangerously-skip-permissions"
       [[ -n "$model" ]]  && cmd="$cmd --model $model"
       [[ -n "$effort" ]] && cmd="$cmd --effort $effort"
       ;;
     codex)
-      # Codex 공식 bypass: --dangerously-bypass-approvals-and-sandbox
-      # (사용자 config 의 approval_policy=never 에 의존하지 않음)
-      cmd="codex --dangerously-bypass-approvals-and-sandbox"
+      cmd="codex --dangerously-bypass-approvals-and-sandbox -c 'mcp_servers={}'"
       [[ -n "$model" ]]  && cmd="$cmd -m $model"
       [[ -n "$effort" ]] && cmd="$cmd -c model_reasoning_effort=$effort"
       ;;
     gemini)
-      cmd="gemini --approval-mode=yolo"
+      cmd="gemini --approval-mode=yolo --allowed-mcp-server-names filesystem"
       [[ -n "$model" ]]  && cmd="$cmd -m $model"
       ;;
     *)

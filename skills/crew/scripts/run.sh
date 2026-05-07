@@ -175,22 +175,45 @@ pane_worker() {
   "$HERE/dispatch.sh" "$SLUG" "$pane_idx" "$prompt_file" >> "$LOG_FILE" 2>&1
   echo "[$(date +%H:%M:%S)]   → pane-$pane_idx ($cli $model) prompt dispatched" >> "$LOG_FILE"
 
-  # Wait for done-signal: sentinel file touched by the LLM after completing.
+  # Wait for completion: done-file check runs concurrently with wait_idle.sh.
+  # whichever fires first wins.
   local done_file="$(crew_session_dir "$SLUG")/done/pane-$pane_idx"
-  local wait_start=$(date +%s)
+  mkdir -p "$(dirname "$done_file")"
+
+  # Start wait_idle.sh in background (SHA + cli_done pattern detection)
+  "$HERE/wait_idle.sh" "$surface" "$IDLE_SECS" "$MAX_SECS" "$cli" >/dev/null 2>&1 &
+  local idle_pid=$!
+
   status="timeout"
+  local wait_start=$(date +%s)
   while (( $(date +%s) - wait_start < MAX_SECS )); do
+    # Check done-file first
     if [[ -f "$done_file" ]]; then
+      status="idle"
+      kill "$idle_pid" 2>/dev/null || true
+      wait "$idle_pid" 2>/dev/null || true
+      break
+    fi
+    # Check if wait_idle.sh already exited (idle detected)
+    if ! kill -0 "$idle_pid" 2>/dev/null; then
       status="idle"
       break
     fi
     sleep 1
   done
+  # Cleanup if still running
+  kill "$idle_pid" 2>/dev/null || true
+  wait "$idle_pid" 2>/dev/null || true
   slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
   mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
   new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
   mux_rename "$surface" "$new_label" || true
   echo "[$(date +%H:%M:%S)]   ← pane-$pane_idx ($cli $model) status=$status → $slot" >> "$LOG_FILE"
+
+  # Close pane individually as soon as it finishes
+  sleep 2
+  mux_close "$surface" 2>/dev/null || true
+  echo "[$(date +%H:%M:%S)]   ✕ pane-$pane_idx closed" >> "$LOG_FILE"
 }
 
 for stage in $STAGES; do

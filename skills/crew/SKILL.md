@@ -148,9 +148,9 @@ cleaned=yes
 
 한 pane 이 응답을 마치면 run.sh 가 자동으로 다음을 수행한다:
 
-1. **idle 감지** — `wait_idle.sh` 가 뷰포트+스크롤백 SHA 안정 + CLI-specific done 패턴으로 완료 판정 (기본 IDLE_SECS=3s, POLL=0.5s)
+1. **done-signal 감지** — LLM 이 sentinel 파일(`done/pane-N`)을 touch 하면 즉시 완료 판정
 2. **slot 저장** — `capture.sh` 가 pane 화면 전체를 `$state_dir/slots/pane-N.md` 로 저장 (프롬프트 + 응답)
-3. **탭 rename** — 해당 pane 의 cmux tab 을 `crew#N ✓ claude:opus — role` 형태로 바꿔 완료 표시 (timeout 은 `⏱`)
+3. **pane 즉시 닫기** — capture 직후 pane 을 close. 사용자는 pane 이 사라지는 것으로 "끝남" 을 인지 (`--keep` 시 rename 만 수행)
 4. **share_from 전달** — 다음 stage 에서 이 pane 의 결과를 요구하는 pane 이 있으면 `slot.sh share` 가 자동으로 상위 pane 의 slot 을 하위 pane 의 입력으로 주입
 5. **로그 이벤트** — report pane (`tail -f crew.log`) 에 `← pane-N status=idle → slot path` 라인 출력
 6. **전체 stage 완료 후** — `collect.sh` 가 모든 slot 을 `~/.crew/artifacts/<slug>/` 로 복사하고 메인 Claude 가 synthesis 작성

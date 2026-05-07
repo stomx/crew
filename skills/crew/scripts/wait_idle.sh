@@ -53,7 +53,8 @@ cli_busy() {
       # claude 는 생성 중 " ● <Word>ing… (Ns ...)" 또는 "✻ <Word>ed for Ns" 같은
       # 상태 라인을 계속 갱신한다. 시간 단위(s, m) 둘 다 포괄.
       # 대표 spinner prefix: "● ", "✻ "
-      echo "$screen" | grep -qE '^[[:space:]]*[●✻][[:space:]][A-Z][a-zA-Z]+(ing|ed)(…|\.\.\.)? *(\(|for )' && return 0
+      # ● = 진행 중 (busy). ✻ = 완료 후 소요시간 표시 (not busy).
+      echo "$screen" | grep -qE '^[[:space:]]*●[[:space:]][A-Z][a-zA-Z]+(ing|ed)(…|\.\.\.)? *(\(|for )' && return 0
       # 시간 카운터 형태: "(10s · thinking)", "(2m 41s · ...)", "… (Ns"
       echo "$screen" | grep -qE '\([0-9]+[ms]( [0-9]+[ms])? ·|… \([0-9]+[ms]' && return 0
       return 1
