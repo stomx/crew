@@ -44,7 +44,7 @@ Claude/Codex/Gemini 를 한 명령으로 병렬 실행하고 결과를 자동 �
 
 - macOS 또는 Linux
 - 멀티플렉서 (택 1, 또는 없이 인라인):
-  - [cmux](https://cmux.app) — macOS 전용. DMG 설치, CLI 번들 포함
+  - [cmux](https://cmux.com) — macOS 전용. DMG 설치, CLI 번들 포함
   - [tmux](https://github.com/tmux/tmux) — `brew install tmux` / `apt install tmux`
 - 보조 도구: `bash`, `jq`, `perl`, `shasum`
 - (선택) `coreutils` — `timeout` 명령 안정화. `brew install coreutils`

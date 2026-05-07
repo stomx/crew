@@ -132,7 +132,7 @@ stage 2 pane 은 `share_from` 에 명시된 상위 pane slot 을 프롬프트 �
 
 ### cmux 설정
 
-1. [cmux.app](https://cmux.app) 에서 DMG 다운로드 후 설치
+1. [cmux.com](https://cmux.com) 에서 DMG 다운로드 후 설치
 2. cmux 앱 실행 → workspace 생성
 3. workspace 내 터미널에서 Claude Code 실행
 

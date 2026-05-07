@@ -22,7 +22,7 @@ crew_require_mux() {
     cmux)
       if ! command -v cmux >/dev/null 2>&1; then
         echo "error: cmux CLI not found on PATH" >&2
-        echo "  hint: install cmux (macOS: cmux.app), or add its bin dir to PATH." >&2
+        echo "  hint: install cmux (macOS: cmux.com), or add its bin dir to PATH." >&2
         return 2
       fi
       ;;
