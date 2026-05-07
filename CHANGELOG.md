@@ -19,6 +19,19 @@
 
 
 
+## [0.6.0] - 2026-05-07
+
+### Fixed
+- crew-setup: macOS 에 coreutils timeout 이 없어 gemini health check 가 항상 fail 로 판정되던 버그 수정
+- crew-setup: codex API Key 환경(`OPENAI_API_KEY`)도 pass 로 인식하도록 감지 로직 추가
+
+### Added
+- crew-setup Step 2 인증 어시스트 흐름 개편: 2-A(설치) → 2-B(인증방식 선택: OAuth/API Key) → 2-C(단계별 연결 가이드) → 2-D(재검증+재시도/변경/건너뛰기)
+- done-signal 기반 완료 감지. LLM 에게 sentinel 파일 touch 를 지시해 폴링 대신 push 방식으로 전환
+
+### Changed
+- wait_idle.sh 해시 폴링을 sentinel file 대기로 대체. 오케스트레이터 대기 시간 즉각 단축
+
 ## [0.5.1] - 2026-05-07
 
 ### Fixed
@@ -220,4 +233,5 @@
 [0.4.12]: https://github.com/stomx/crew/compare/v0.4.11...v0.4.12
 [0.4.13]: https://github.com/stomx/crew/compare/v0.4.12...v0.4.13
 [0.5.0]: https://github.com/stomx/crew/compare/v0.4.13...v0.5.0
+[0.6.0]: https://github.com/stomx/crew/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/stomx/crew/compare/v0.5.0...v0.5.1
