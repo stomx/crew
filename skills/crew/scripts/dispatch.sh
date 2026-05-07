@@ -26,9 +26,24 @@ command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 SURFACE="$(jq -r --argjson idx "$PANE_IDX" '.surfaces[$idx] // empty' "$MANIFEST")"
 [[ -n "$SURFACE" ]] || { echo "error: pane $PANE_IDX has no surface" >&2; exit 4; }
 
+# Done-signal: append instruction for the LLM to touch a sentinel file on completion.
+# The orchestrator watches for this file instead of hash-polling.
+SESSION_DIR="$(crew_session_dir "$SLUG")"
+DONE_DIR="$SESSION_DIR/done"
+mkdir -p "$DONE_DIR"
+DONE_FILE="$DONE_DIR/pane-$PANE_IDX"
+
 # Strip trailing whitespace so Enter submits
 CLEAN="$(mktemp -t crew-prompt.XXXXXX)"
 perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "$CLEAN"
+
+# Append done-signal instruction
+cat >> "$CLEAN" <<SIGNAL
+
+---
+[SYSTEM] 응답이 완전히 끝나면, 마지막에 반드시 아래 명령을 실행해:
+touch $DONE_FILE
+SIGNAL
 
 mux_send "$SURFACE" "$(cat "$CLEAN")"
 sleep 0.4

@@ -175,7 +175,17 @@ pane_worker() {
   "$HERE/dispatch.sh" "$SLUG" "$pane_idx" "$prompt_file" >> "$LOG_FILE" 2>&1
   echo "[$(date +%H:%M:%S)]   → pane-$pane_idx ($cli $model) prompt dispatched" >> "$LOG_FILE"
 
-  status="$("$HERE/wait_idle.sh" "$surface" "$IDLE_SECS" "$MAX_SECS" "$cli" 2>/dev/null || echo unknown)"
+  # Wait for done-signal: sentinel file touched by the LLM after completing.
+  local done_file="$(crew_session_dir "$SLUG")/done/pane-$pane_idx"
+  local wait_start=$(date +%s)
+  status="timeout"
+  while (( $(date +%s) - wait_start < MAX_SECS )); do
+    if [[ -f "$done_file" ]]; then
+      status="idle"
+      break
+    fi
+    sleep 1
+  done
   slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
   mark="✓"; [[ "$status" == "timeout" ]] && mark="⏱"
   new_label="crew#$pane_idx $mark $cli${model:+:$model}${role:+ — $role}"
