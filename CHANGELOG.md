@@ -18,6 +18,12 @@
 
 
 
+
+## [0.5.1] - 2026-05-07
+
+### Fixed
+- 인라인 모드 stderr 분리 및 gemini JSON 응답 파싱
+
 ## [0.5.0] - 2026-05-07
 
 ### Added
@@ -214,3 +220,4 @@
 [0.4.12]: https://github.com/stomx/crew/compare/v0.4.11...v0.4.12
 [0.4.13]: https://github.com/stomx/crew/compare/v0.4.12...v0.4.13
 [0.5.0]: https://github.com/stomx/crew/compare/v0.4.13...v0.5.0
+[0.5.1]: https://github.com/stomx/crew/compare/v0.5.0...v0.5.1
