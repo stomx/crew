@@ -10,7 +10,7 @@ cmux workspace 안에 여러 LLM pane 을 띄워 병렬 실행하고 결과를 �
 
 ## 요구사항
 
-- macOS + [cmux](https://cmux.app) 앱 (DMG 다운로드 설치). `cmux` CLI 는 앱 설치 시 번들로 포함된다. `CMUX_WORKSPACE_ID` 가 설정된 surface 안에서 Claude Code 를 실행해야 한다.
+- macOS + [cmux](https://cmux.app) 앱 (DMG 다운로드 설치). `cmux` CLI 는 앱 설치 시 번들로 포함된다. cmux workspace 의 터미널 surface(`CMUX_WORKSPACE_ID` 가 설정된 환경) 안에서 Claude Code 를 실행해야 한다.
 - 보조 도구: `bash`, `jq`, `perl`, `shasum`
 - (선택) `coreutils` — `/crew-setup` 의 `timeout` 명령을 안정화한다. `brew install coreutils`
 - 최소 하나 이상의 CLI:
@@ -43,7 +43,7 @@ pane 구성이나 모델을 직접 지정하고 싶으면 [USAGE.md — Plan JSO
 ## 동작 흐름
 
 1. 라우팅 — 프롬프트 분석 후 CLI·모델·티어·effort 결정
-2. Launch — 각 pane 을 bypass 모드로 부팅, 탭 이름을 `crew#N · cli:model — role` 로 지정
+2. Launch — 각 pane 을 bypass 모드(자동 승인)로 부팅, 탭 이름을 `crew#N · cli:model — role` 로 지정
 3. Worker — ready 감지 → dispatch → busy-aware idle 감지 → slot 저장 → 탭에 `✓`
 4. Collect — 모든 pane slot 을 artifact 로 모음
 5. 합성 — 메인 Claude 가 artifact 를 읽고 최종 보고
