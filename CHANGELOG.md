@@ -15,6 +15,12 @@
 
 
 
+
+## [0.4.12] - 2026-05-07
+
+### Other
+- 리뷰 3건 반영 — artifact rebind 명시·setup 선행 강조·FAQ 추가
+
 ## [0.4.11] - 2026-05-07
 
 ### Other
@@ -193,3 +199,4 @@
 [0.4.9]: https://github.com/stomx/crew/compare/v0.4.8...v0.4.9
 [0.4.10]: https://github.com/stomx/crew/compare/v0.4.9...v0.4.10
 [0.4.11]: https://github.com/stomx/crew/compare/v0.4.10...v0.4.11
+[0.4.12]: https://github.com/stomx/crew/compare/v0.4.11...v0.4.12
