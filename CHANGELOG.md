@@ -13,6 +13,12 @@
 
 
 
+
+## [0.4.10] - 2026-05-07
+
+### Other
+- README 간결화 + USAGE.md 신설로 고급 가이드 분리
+
 ## [0.4.9] - 2026-05-06
 
 ### Fixed
@@ -179,3 +185,4 @@
 [0.4.7]: https://github.com/stomx/crew/compare/v0.4.6...v0.4.7
 [0.4.8]: https://github.com/stomx/crew/compare/v0.4.7...v0.4.8
 [0.4.9]: https://github.com/stomx/crew/compare/v0.4.8...v0.4.9
+[0.4.10]: https://github.com/stomx/crew/compare/v0.4.9...v0.4.10
