@@ -14,6 +14,12 @@
 
 
 
+
+## [0.4.11] - 2026-05-07
+
+### Other
+- 리뷰 피드백 반영 — onboarding·정확성·톤 정비
+
 ## [0.4.10] - 2026-05-07
 
 ### Other
@@ -186,3 +192,4 @@
 [0.4.8]: https://github.com/stomx/crew/compare/v0.4.7...v0.4.8
 [0.4.9]: https://github.com/stomx/crew/compare/v0.4.8...v0.4.9
 [0.4.10]: https://github.com/stomx/crew/compare/v0.4.9...v0.4.10
+[0.4.11]: https://github.com/stomx/crew/compare/v0.4.10...v0.4.11
