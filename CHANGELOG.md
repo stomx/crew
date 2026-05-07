@@ -16,6 +16,12 @@
 
 
 
+
+## [0.4.13] - 2026-05-07
+
+### Other
+- surface·bypass 용어 보충으로 진입 장벽 완화
+
 ## [0.4.12] - 2026-05-07
 
 ### Other
@@ -200,3 +206,4 @@
 [0.4.10]: https://github.com/stomx/crew/compare/v0.4.9...v0.4.10
 [0.4.11]: https://github.com/stomx/crew/compare/v0.4.10...v0.4.11
 [0.4.12]: https://github.com/stomx/crew/compare/v0.4.11...v0.4.12
+[0.4.13]: https://github.com/stomx/crew/compare/v0.4.12...v0.4.13
