@@ -26,7 +26,9 @@ cmux workspace 안에 여러 LLM pane 을 띄워 병렬 실행하고 결과를 �
 /crew-setup
 ```
 
-`/crew-setup` 이 인식되지 않으면 `/reload-plugins` 를 한 번 실행한 후 재시도한다. `/crew-setup` 은 각 CLI 의 네이티브 로그인 상태를 확인하고, 실패한 CLI 만 재연동을 안내한다. API key 를 묻거나 저장하지 않는다.
+`/crew-setup` 은 첫 `/crew` 사용 전에 반드시 완료해야 한다. 이 과정에서 사용 가능한 CLI 목록(`cli_available`)이 결정되며, setup 을 건너뛰면 crew 가 라우팅할 CLI 를 알 수 없어 실행되지 않는다.
+
+인식되지 않으면 `/reload-plugins` 를 한 번 실행한 후 재시도한다. setup 은 각 CLI 의 네이티브 로그인 상태를 확인하고, 실패한 CLI 만 재연동을 안내한다. API key 를 묻거나 저장하지 않는다.
 
 ## Hello World
 
@@ -60,7 +62,7 @@ ChatGPT 계정 Codex 는 `gpt-5.5` / `gpt-5.4` 만 허용. 티어 선택 기준�
 
 ## 저장 위치
 
-- 세션 state: `~/.crew/state/ws-<workspace_id_prefix>/<run_id>/` (cleanup 후 삭제)
+- 세션 state: `~/.crew/state/ws-<workspace_id_prefix>/<run_id>/` (cleanup 시 `latest` 를 artifact 로 rebind 후 삭제)
 - 아티팩트: `~/.crew/artifacts/<workspace_slug>/<slug>/` (보존)
 
 환경변수 override 및 상세 구조는 [USAGE.md](./USAGE.md#저장-위치와-환경변수) 참고.

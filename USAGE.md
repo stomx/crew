@@ -221,6 +221,12 @@ crew 가 자동 삭제하지 않는다. 수동으로 `rm -rf ~/.crew/artifacts/w
 **Q. plan.slug 를 고정하면 같은 디렉터리를 재사용할 수 있나?**
 아니다. 같은 slug 가 이미 존재하면 crew 가 자동으로 접미사를 붙여 격리한다. 이어가기는 `share_from` 의 `prev:N` 을 사용.
 
+**Q. `/crew` 를 호출했는데 crew 가 실행되지 않고 Claude 가 직접 답한다.**
+원인 후보:
+1. `/crew-setup` 미완료 — `~/.crew/state/overrides.yaml` 이 없으면 라우팅 불가. `/crew-setup` 실행.
+2. 프롬프트가 너무 짧거나 단순 — 메인 Claude 가 crew 없이 답할 수 있다고 판단. "crew 로 나눠줘" 를 명시하거나 `/crew <프롬프트>` 형태로 호출.
+3. cmux 바깥 환경 — `CMUX_WORKSPACE_ID` 가 없으면 pane 을 띄울 수 없다.
+
 **Q. pane 이 멈춰서 답이 안 오면?**
 1. 해당 CLI 를 터미널에서 단독 실행 (`! claude`, `! codex`, `! gemini`) 하고 MCP 경고나 로그인 오류가 없는지 확인.
 2. 이상 없으면 `/crew-cleanup` 으로 잔여 pane 정리 후 재시도.
