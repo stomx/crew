@@ -17,6 +17,12 @@
 
 
 
+
+## [0.5.0] - 2026-05-07
+
+### Added
+- mux 어댑터 + 인라인 폴백으로 cmux/tmux/bare 환경 모두 지원
+
 ## [0.4.13] - 2026-05-07
 
 ### Other
@@ -207,3 +213,4 @@
 [0.4.11]: https://github.com/stomx/crew/compare/v0.4.10...v0.4.11
 [0.4.12]: https://github.com/stomx/crew/compare/v0.4.11...v0.4.12
 [0.4.13]: https://github.com/stomx/crew/compare/v0.4.12...v0.4.13
+[0.5.0]: https://github.com/stomx/crew/compare/v0.4.13...v0.5.0
