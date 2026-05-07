@@ -1,44 +1,73 @@
 # crew 사용 가이드
 
-`/crew` 의 기본 사용은 [README.md](./README.md) 를 참고한다. 이 문서는 **plan JSON 직접 작성**, **이어가기**, **환경변수 튜닝** 같은 고급 시나리오를 다룬다.
+기본 사용은 [README.md](./README.md) 참고. 이 문서는 Plan JSON 직접 작성, 이어가기, 모드별 상세, 환경변수 튜닝을 다룸.
+
+## 목차
+
+- [동작 흐름](#동작-흐름)
+- [Plan JSON](#plan-json)
+- [모드별 동작](#모드별-동작)
+- [같은 workspace 에서 연속 호출](#같은-workspace-에서-연속-호출)
+- [Staged 실행 전략](#staged-실행-전략)
+- [티어 선택 가이드](#티어-선택-가이드)
+- [저장 위치와 환경변수](#저장-위치와-환경변수)
+- [수동 실행 레퍼런스](#수동-실행-레퍼런스)
+- [FAQ](#faq)
+
+## 동작 흐름
+
+```
+라우팅 → Launch → Worker → Collect → 합성 → Cleanup
+```
+
+| 단계 | 설명 |
+|---|---|
+| 라우팅 | 프롬프트 분석 → CLI·모델·티어·effort 결정 |
+| Launch | pane 부팅 (자동 승인 모드), 탭 이름 `crew#N · cli:model — role` |
+| Worker | ready 감지 → dispatch → busy-aware idle 감지 → slot 저장 → 탭 `✓` |
+| Collect | 모든 slot 을 artifact 디렉터리로 수집 |
+| 합성 | 메인 Claude 가 artifact 를 읽고 최종 보고 |
+| Cleanup | `view_secs` 후 pane 정리, `latest` 심링크를 artifact 로 rebind |
+
+인라인 모드에서는 Launch/Worker 대신 subprocess 직접 호출 (`claude -p`, `codex exec`, `gemini -p`).
 
 ## Plan JSON
 
-메인 Claude 가 내부적으로 생성하는 plan 을 직접 쓰면 pane 수·모델·stage 를 명시 제어할 수 있다.
+메인 Claude 가 자동 생성하는 plan 을 직접 작성하면 pane 수·모델·stage 명시 제어 가능.
 
 ### 스키마
 
 ```jsonc
 {
-  "slug": "optional",                    // 선택. 생략 시 자동 생성
+  "slug": "optional",
   "panes": [
     {
-      "id": 1,                           // 1 이상, pane 순번
-      "cli": "claude",                   // "claude" | "codex" | "gemini"
-      "model": "opus",                   // CLI 별 모델 alias (티어 표 참고)
-      "effort": "high",                  // low | medium | high | xhigh | max (gemini 제외)
-      "role": "문서 초안",               // pane 탭 라벨에 표시
-      "prompt_file": "/tmp/xxx/p1.txt",  // 절대경로. mktemp -d 권장
-      "stage": 1,                        // 같은 stage 는 병렬, 작은 번호부터 순차
-      "share_from": [1, "prev:2"]        // 같은 run 의 pane 번호 또는 이전 run 참조
+      "id": 1,
+      "cli": "claude",
+      "model": "opus",
+      "effort": "high",
+      "role": "문서 초안",
+      "prompt_file": "/tmp/xxx/p1.txt",
+      "stage": 1,
+      "share_from": [1, "prev:2"]
     }
   ]
 }
 ```
 
-필드별 상세:
+### 필드 레퍼런스
 
 | 필드 | 필수 | 설명 |
 |---|---|---|
 | `slug` | 아님 | 생략 시 `ws-<workspace>/<timestamp>-<pid>-<rand>` 자동 부여 |
-| `panes[].id` | 예 | 1 부터 시작하는 pane 순번. `share_from` 에서 이 번호로 참조 |
-| `panes[].cli` | 예 | 부팅할 CLI |
-| `panes[].model` | 아님 | 생략 시 CLI 기본 모델. 티어 표의 alias 를 쓴다 |
-| `panes[].effort` | 아님 | CLI 별 지원 범위가 다르다. claude: `low \| medium \| high \| xhigh \| max`, codex: `low \| medium \| high \| xhigh` (`max` 미지원, `-c model_reasoning_effort=` 로 전달), gemini: 미지원 |
-| `panes[].role` | 아님 | pane 탭 이름에 붙는 역할 문구 |
-| `panes[].prompt_file` | 예 | `mktemp -d` 로 세션별 디렉터리에 쓰기. `/tmp/crew.paneN.txt` 같은 고정 경로는 금지 |
-| `panes[].stage` | 아님 | 기본 `1`. 같은 stage 병렬, 작은 번호 먼저 |
-| `panes[].share_from` | 아님 | 숫자(같은 run pane-N) 또는 `"prev:N"`, `"prev-K:N"` (이전 run 의 pane-N) |
+| `panes[].id` | 예 | 1 부터 시작. `share_from` 참조용 |
+| `panes[].cli` | 예 | `claude` \| `codex` \| `gemini` |
+| `panes[].model` | 아님 | 생략 시 CLI 기본값. 티어 매트릭스의 alias 사용 |
+| `panes[].effort` | 아님 | claude: `low`~`max`, codex: `low`~`xhigh`, gemini: 미지원 |
+| `panes[].role` | 아님 | pane 탭 라벨 |
+| `panes[].prompt_file` | 예 | 절대경로. `mktemp -d` 기반 세션별 디렉터리 권장. 고정 경로 금지 |
+| `panes[].stage` | 아님 | 기본 `1`. 같은 stage 병렬, 작은 번호부터 순차 |
+| `panes[].share_from` | 아님 | 숫자 (같은 run pane-N) 또는 `"prev:N"` / `"prev-K:N"` (이전 run) |
 
 ### 최소 예제
 
@@ -57,19 +86,18 @@ cat > "$TMP/plan.json" <<EOF
 }
 EOF
 
-# 설치된 crew 중 가장 최신 버전의 run.sh 를 선택
 RUN=$(ls -dt ~/.claude/plugins/cache/crew/crew/*/skills/crew/scripts/run.sh | head -1)
 bash "$RUN" "$TMP/plan.json"
 ```
 
 ### Staged + share_from 예제
 
-stage 1 에서 3 개 pane 이 각자 다른 관점으로 탐색, stage 2 에서 이를 합쳐 최종 계획을 만든다.
+stage 1 에서 3 pane 병렬 탐색, stage 2 에서 합성.
 
 ```bash
 TMP=$(mktemp -d -t crew.XXXXXX)
 cat > "$TMP/pane-1.txt" <<'EOF'
-AI 코드 리뷰 봇 MVP 의 요구사항·이해관계자·성공 지표를 한국어로 정리하라.
+AI 코드 리뷰 봇 MVP 의 요구사항·이해관계자·성공 지표를 정리하라.
 EOF
 cat > "$TMP/pane-2.txt" <<'EOF'
 AI 코드 리뷰 봇 MVP 의 시스템 아키텍처 옵션 3 가지를 비교하라.
@@ -78,7 +106,7 @@ cat > "$TMP/pane-3.txt" <<'EOF'
 AI 코드 리뷰 봇 MVP 의 보안·운영 리스크 상위 10 개를 리스트업하라.
 EOF
 cat > "$TMP/pane-4.txt" <<'EOF'
-pane-1, pane-2, pane-3 의 결과를 종합해 12 주 Week-by-Week 로드맵을 작성하라.
+pane-1, pane-2, pane-3 의 결과를 종합해 12 주 로드맵을 작성하라.
 EOF
 
 cat > "$TMP/plan.json" <<EOF
@@ -98,34 +126,63 @@ cat > "$TMP/plan.json" <<EOF
 EOF
 ```
 
-stage 2 의 pane 은 `share_from` 에 명시된 상위 pane 의 slot 을 프롬프트 앞에 자동 주입한 뒤 본 프롬프트를 실행한다.
+stage 2 pane 은 `share_from` 에 명시된 상위 pane slot 을 프롬프트 앞에 자동 주입 후 본 프롬프트 실행.
+
+## 모드별 동작
+
+### cmux 모드
+
+- 감지: `CMUX_WORKSPACE_ID` 환경변수 존재
+- `cmux new-split` → pane 생성, `cmux read-screen` → 화면 캡처
+- 실시간 시각화 + 탭 이름 부여 + report pane (`tail -f crew.log`)
+- macOS 전용
+
+### tmux 모드
+
+- 감지: `TMUX` 환경변수 존재, `CMUX_WORKSPACE_ID` 없음
+- `tmux split-window` → pane 생성, `tmux capture-pane -p` → 화면 캡처
+- cmux 와 동일한 흐름. pane ID 가 `%N` 형태
+- macOS / Linux
+
+### 인라인 모드
+
+- 감지: cmux/tmux 모두 없음
+- pane 생성 없이 CLI 의 비대화형 모드를 subprocess 로 직접 호출:
+  - `claude -p - --model X --effort Y`
+  - `codex exec - -m X`
+  - `gemini -p - -m X`
+- staged 실행 + `share_from` 동일 지원
+- stderr 분리 (에러 시 `[stderr]` 프리픽스로 slot 에 포함)
+- gemini 출력 JSON 에서 `.response` 필드 자동 추출
+- 시각화 없음. 진행 관찰 불가
 
 ## 같은 workspace 에서 연속 호출
 
-같은 cmux workspace 의 모든 run 은 `~/.crew/state/ws-<id>/` 아래 누적되며 `latest` 심링크가 최신 run 을 가리킨다. 다음 호출의 plan 에서 이전 run 의 pane 결과를 그대로 참조할 수 있다.
+같은 멀티플렉서 세션의 모든 run 이 `~/.crew/state/ws-<id>/` 아래 누적. `latest` 심링크가 최신 run 을 가리킴.
 
 ```json
 { "share_from": ["prev:3"] }     // latest run 의 pane-3
 { "share_from": ["prev-2:1"] }   // 2 번째 전 run 의 pane-1
 ```
 
-cleanup 이후 state 가 사라져도 `latest` 는 artifact 경로로 자동 재바인딩된다. `share_from` 에서 `prev:N` 은 항상 유효.
+cleanup 후 state 삭제되어도 `latest` 는 artifact 경로로 자동 재바인딩. `prev:N` 항상 유효.
 
-다른 workspace 는 격리된다.
+다른 workspace 는 격리됨.
 
 ## Staged 실행 전략
 
-staged 는 언제 쓰나:
+적합한 경우:
 
-- **단일 pane 으로 감당 안 되는 긴 작업** — 탐색을 3 pane 으로 병렬화 후 합성 pane 으로 통합.
-- **다른 관점의 교차 검증** — 같은 질문을 claude/codex/gemini 에 던져 차이를 합성.
-- **단계적 정제** — 초안 → 비평 → 수정.
+- 단일 pane 으로 부족한 대규모 작업 → 병렬 탐색 후 합성
+- 교차 검증 → 같은 질문을 서로 다른 CLI 에 던져 차이 분석
+- 단계적 정제 → 초안 → 비평 → 수정
 
-팁:
+규칙:
 
-- stage 마다 pane 수를 줄이면 시간·비용 모두 절약된다 (예: stage 1 × 3 → stage 2 × 1).
-- 합성 pane 은 보통 `opus / high` 로 두면 품질이 안정적이다.
-- `share_from` 참조 pane 은 반드시 작은 stage 번호여야 한다 (DAG 검증됨).
+- stage 마다 pane 수를 줄이면 시간·비용 절감 (예: stage 1 × 3 → stage 2 × 1)
+- 합성 pane 은 `opus / high` 가 안정적
+- `share_from` 참조 대상은 반드시 작은 stage 번호 (DAG 검증됨)
+- 4 pane 이상은 초기화 경쟁으로 실패율 증가. 3 이하 권장
 
 ## 티어 선택 가이드
 
@@ -136,13 +193,13 @@ staged 는 언제 쓰나:
 | 아키텍처 결정·멀티 파일 리팩터링 | deep | 기본 권장. 복잡한 추론 감당 |
 | 보안 리뷰·크리티컬 마이그레이션 | frontier | 최상 품질. 비용 2~4× |
 
-frontier 티어의 Gemini 는 `gemini-3.1-pro-preview` 가 1 차. 접근 실패 시 `gemini-2.5-pro` 로 자동 폴백한다.
+CLI 별 강점:
 
-CLI 별 특성:
+- **claude** — agentic coding, multi-file edit, tool use
+- **codex** — backend correctness, systems reasoning
+- **gemini** — 2M context ingestion, UX·docs 대안 탐색
 
-- **claude**: agentic coding, multi-file edit, tool use 에 강함
-- **codex**: backend correctness, systems reasoning 에 강함
-- **gemini**: 2M context ingestion, UX·docs 대안 탐색에 강함
+frontier Gemini: `gemini-3.1-pro-preview` 우선, 접근 실패 시 `gemini-2.5-pro` 폴백.
 
 ## 저장 위치와 환경변수
 
@@ -153,31 +210,31 @@ CLI 별 특성:
 │       ├── latest → <run_id>       # cleanup 후 artifact 로 rebind
 │       └── <run_id>/
 │           ├── manifest.json
-│           ├── prompts/pane-N.txt   # run.sh 가 원본 prompt 를 스냅샷
-│           ├── slots/pane-N.md      # pane 응답 캡처
+│           ├── prompts/pane-N.txt
+│           ├── slots/pane-N.md
 │           └── crew.log
 └── artifacts/
     └── <workspace_slug>/
         └── <slug>/
             ├── index.md
             ├── manifest.json
-            ├── pane-N.md            # 보존 슬롯
-            └── synthesis.md         # 메인 Claude 가 작성
+            ├── pane-N.md
+            └── synthesis.md
 ```
 
 | 환경변수 | 기본값 | 효과 |
 |---|---|---|
 | `CREW_STATE_DIR` | `$HOME/.crew/state` | 세션 state 디렉터리 override |
 | `CREW_ARTIFACT_DIR` | `$HOME/.crew/artifacts` | artifact 디렉터리 override |
-| `CREW_VIEW_SECS` | `10` | 모든 stage 완료 후 cleanup 전 전체 지연(초). pane 당 값이 아니라 run 종료 시 한 번만 적용 |
-| `CREW_WHISPER_MAIN` | `0` | `1` 이면 crew 로그를 메인 pane 에 속삭인다 |
+| `CREW_VIEW_SECS` | `10` | 전체 stage 완료 후 cleanup 전 대기(초) |
+| `CREW_WHISPER_MAIN` | `0` | `1` 이면 crew 로그를 메인 pane 에 whisper |
 | `CREW_POLL_INTERVAL` | `0.5` | idle/ready 감지 폴링 간격(초) |
 
-`~/.crew/state/overrides.yaml` 도 영향을 준다. `/crew-setup` 이 이 파일에 `cli_available` 과 `preference` 를 기록하며, crew 는 라우팅 시 이 값을 **하드 제약**으로 본다.
+`~/.crew/state/overrides.yaml` — `/crew-setup` 이 `cli_available` 과 `preference` 를 기록. crew 라우팅의 **하드 제약**.
 
 ## 수동 실행 레퍼런스
 
-### `run.sh`
+### run.sh
 
 ```bash
 run.sh <plan-json-path-or-dash> [idle_secs] [max_secs] [view_secs] [--keep]
@@ -186,48 +243,47 @@ run.sh <plan-json-path-or-dash> [idle_secs] [max_secs] [view_secs] [--keep]
 | 인자 | 기본 | 설명 |
 |---|---|---|
 | plan-json | 필수 | 파일 경로 또는 `-` (stdin) |
-| `idle_secs` | 5 | pane 해시 안정으로 idle 판정하는 시간 |
-| `max_secs` | 300 | pane 당 최대 대기 (초과 시 timeout) |
-| `view_secs` | 10 | stage 전체 완료 후 cleanup 전 대기 |
-| `--keep` | 꺼짐 | 지정 시 cleanup 하지 않음 (디버깅·연쇄 호출) |
+| idle_secs | 5 | 해시 안정으로 idle 판정하는 시간 |
+| max_secs | 300 | pane 당 최대 대기 (초과 시 timeout) |
+| view_secs | 10 | 완료 후 cleanup 전 대기 |
+| `--keep` | 꺼짐 | cleanup 하지 않음 (디버깅용) |
 
-### `cleanup.sh`
+멀티플렉서 미감지 시 자동으로 `inline-run.sh` 로 위임.
+
+### cleanup.sh
 
 ```bash
 cleanup.sh <slug>     # 특정 세션 정리
 cleanup.sh all        # 모든 세션 정리
-cleanup.sh orphan     # manifest 를 잃은 고아 pane 만 정리
+cleanup.sh orphan     # manifest 잃은 고아 pane 만 정리
 ```
 
-스크립트 실제 경로: `$CLAUDE_PLUGIN_ROOT/skills/crew/scripts/` (보통 `~/.claude/plugins/cache/crew/crew/<version>/skills/crew/scripts/`).
+스크립트 경로: `~/.claude/plugins/cache/crew/crew/<version>/skills/crew/scripts/`
 
 ## FAQ
 
-**Q. 병렬 pane 이 많을수록 빠른가?**
-아니다. 4 개 이상이면 cmux 와 각 CLI 의 MCP 초기화가 경쟁해 오히려 실패 확률이 오른다. 3 개 이하를 권장.
+**Q. `/crew` 호출 시 crew 미실행, Claude 가 직접 답함**
+원인:
+1. `/crew-setup` 미완료 — `~/.crew/state/overrides.yaml` 없으면 라우팅 불가
+2. 프롬프트가 너무 짧거나 단순 — `crew 로 나눠줘` 명시 또는 `/crew <프롬프트>` 사용
+3. `CMUX_WORKSPACE_ID` / `TMUX` 없음 + 인라인 라우팅 조건 미충족
 
-**Q. claude pane 이 답변 도중 잘린다.**
-`idle_secs` 를 늘려 보라 (`run.sh plan.json 30`). 긴 thinking 중 spinner 가 멈춘 프레임을 idle 로 오판하는 경우가 있다. 0.4.6 이후로는 busy-pattern 가드가 이를 막지만 분 단위 생각이 길면 여전히 안전마진이 필요하다.
+**Q. pane 답변 도중 잘림**
+`idle_secs` 증가 필요 (`run.sh plan.json 30`). 0.4.6+ 에서 busy-pattern 가드가 대부분 방지하나, 분 단위 thinking 시 안전마진 필요.
 
-**Q. gemini 가 "API key not valid" 로 실패한다.**
-`~/.gemini/settings.json` 의 `selectedType` 이 `gemini-api-key` 로 박혀 있으면 OAuth 가 저장되지 않는다. `/crew-setup` 을 돌리거나, 수동으로 `oauth-personal` 로 바꾼 뒤 `gemini` → `/auth` → Google 로그인.
+**Q. Gemini "API key not valid"**
+`~/.gemini/settings.json` 의 `selectedType` 이 `gemini-api-key` 인 경우. `/crew-setup` 재실행 또는 수동으로 `oauth-personal` 전환 후 `gemini` → `/auth`.
 
-**Q. artifact 는 언제 지워지나?**
-crew 가 자동 삭제하지 않는다. 수동으로 `rm -rf ~/.crew/artifacts/ws-*/<old-slug>/` 가능.
+**Q. artifact 삭제 시점**
+crew 가 자동 삭제하지 않음. `rm -rf ~/.crew/artifacts/ws-*/<old-slug>/` 로 수동 정리.
 
-**Q. `share_from` 에 숫자와 `prev:N` 을 섞을 수 있나?**
-가능. 예: `"share_from": [1, "prev:2"]` 는 같은 run 의 pane-1 과 직전 run 의 pane-2 를 모두 주입한다.
+**Q. `share_from` 에 숫자와 `prev:N` 혼합 가능 여부**
+가능. 예: `"share_from": [1, "prev:2"]` — 같은 run 의 pane-1 + 직전 run 의 pane-2 모두 주입.
 
-**Q. plan.slug 를 고정하면 같은 디렉터리를 재사용할 수 있나?**
-아니다. 같은 slug 가 이미 존재하면 crew 가 자동으로 접미사를 붙여 격리한다. 이어가기는 `share_from` 의 `prev:N` 을 사용.
+**Q. 병렬 pane 이 많을수록 빠른가**
+아님. 4 이상이면 MCP 초기화 경쟁으로 실패율 증가. 3 이하 권장.
 
-**Q. `/crew` 를 호출했는데 crew 가 실행되지 않고 Claude 가 직접 답한다.**
-원인 후보:
-1. `/crew-setup` 미완료 — `~/.crew/state/overrides.yaml` 이 없으면 라우팅 불가. `/crew-setup` 실행.
-2. 프롬프트가 너무 짧거나 단순 — 메인 Claude 가 crew 없이 답할 수 있다고 판단. "crew 로 나눠줘" 를 명시하거나 `/crew <프롬프트>` 형태로 호출.
-3. cmux 바깥 환경 — `CMUX_WORKSPACE_ID` 가 없으면 pane 을 띄울 수 없다.
-
-**Q. pane 이 멈춰서 답이 안 오면?**
-1. 해당 CLI 를 터미널에서 단독 실행 (`! claude`, `! codex`, `! gemini`) 하고 MCP 경고나 로그인 오류가 없는지 확인.
-2. 이상 없으면 `/crew-cleanup` 으로 잔여 pane 정리 후 재시도.
-3. 같은 증상이 반복되면 `~/.crew/state/ws-*/<run_id>/crew.log` 의 마지막 라인을 확인해 어느 단계에서 멈췄는지 파악한다.
+**Q. pane 멈춤 (답 없음)**
+1. 해당 CLI 단독 실행 (`! claude`, `! codex`, `! gemini`) 하여 인증·MCP 오류 확인
+2. `/crew-cleanup` 으로 잔여 pane 정리 후 재시도
+3. `~/.crew/state/ws-*/<run_id>/crew.log` 마지막 라인 확인
