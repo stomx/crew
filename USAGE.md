@@ -34,7 +34,7 @@
 | `panes[].id` | 예 | 1 부터 시작하는 pane 순번. `share_from` 에서 이 번호로 참조 |
 | `panes[].cli` | 예 | 부팅할 CLI |
 | `panes[].model` | 아님 | 생략 시 CLI 기본 모델. 티어 표의 alias 를 쓴다 |
-| `panes[].effort` | 아님 | Gemini 는 미지원. Codex 는 `-c model_reasoning_effort=` 로 전달 |
+| `panes[].effort` | 아님 | CLI 별 지원 범위가 다르다. claude: `low \| medium \| high \| xhigh \| max`, codex: `low \| medium \| high \| xhigh` (`max` 미지원, `-c model_reasoning_effort=` 로 전달), gemini: 미지원 |
 | `panes[].role` | 아님 | pane 탭 이름에 붙는 역할 문구 |
 | `panes[].prompt_file` | 예 | `mktemp -d` 로 세션별 디렉터리에 쓰기. `/tmp/crew.paneN.txt` 같은 고정 경로는 금지 |
 | `panes[].stage` | 아님 | 기본 `1`. 같은 stage 병렬, 작은 번호 먼저 |
@@ -57,7 +57,9 @@ cat > "$TMP/plan.json" <<EOF
 }
 EOF
 
-~/.claude/plugins/cache/crew/crew/*/skills/crew/scripts/run.sh "$TMP/plan.json"
+# 설치된 crew 중 가장 최신 버전의 run.sh 를 선택
+RUN=$(ls -dt ~/.claude/plugins/cache/crew/crew/*/skills/crew/scripts/run.sh | head -1)
+bash "$RUN" "$TMP/plan.json"
 ```
 
 ### Staged + share_from 예제
@@ -134,6 +136,8 @@ staged 는 언제 쓰나:
 | 아키텍처 결정·멀티 파일 리팩터링 | deep | 기본 권장. 복잡한 추론 감당 |
 | 보안 리뷰·크리티컬 마이그레이션 | frontier | 최상 품질. 비용 2~4× |
 
+frontier 티어의 Gemini 는 `gemini-3.1-pro-preview` 가 1 차. 접근 실패 시 `gemini-2.5-pro` 로 자동 폴백한다.
+
 CLI 별 특성:
 
 - **claude**: agentic coding, multi-file edit, tool use 에 강함
@@ -165,7 +169,7 @@ CLI 별 특성:
 |---|---|---|
 | `CREW_STATE_DIR` | `$HOME/.crew/state` | 세션 state 디렉터리 override |
 | `CREW_ARTIFACT_DIR` | `$HOME/.crew/artifacts` | artifact 디렉터리 override |
-| `CREW_VIEW_SECS` | `10` | cleanup 전 pane 을 보여줄 시간(초) |
+| `CREW_VIEW_SECS` | `10` | 모든 stage 완료 후 cleanup 전 전체 지연(초). pane 당 값이 아니라 run 종료 시 한 번만 적용 |
 | `CREW_WHISPER_MAIN` | `0` | `1` 이면 crew 로그를 메인 pane 에 속삭인다 |
 | `CREW_POLL_INTERVAL` | `0.5` | idle/ready 감지 폴링 간격(초) |
 
@@ -218,4 +222,6 @@ crew 가 자동 삭제하지 않는다. 수동으로 `rm -rf ~/.crew/artifacts/w
 아니다. 같은 slug 가 이미 존재하면 crew 가 자동으로 접미사를 붙여 격리한다. 이어가기는 `share_from` 의 `prev:N` 을 사용.
 
 **Q. pane 이 멈춰서 답이 안 오면?**
-`/crew-cleanup` 으로 정리한 뒤 재실행. MCP 재초기화 실패라면 해당 CLI 를 터미널에서 한 번 띄워 정상 동작 확인 후 재시도.
+1. 해당 CLI 를 터미널에서 단독 실행 (`! claude`, `! codex`, `! gemini`) 하고 MCP 경고나 로그인 오류가 없는지 확인.
+2. 이상 없으면 `/crew-cleanup` 으로 잔여 pane 정리 후 재시도.
+3. 같은 증상이 반복되면 `~/.crew/state/ws-*/<run_id>/crew.log` 의 마지막 라인을 확인해 어느 단계에서 멈췄는지 파악한다.
