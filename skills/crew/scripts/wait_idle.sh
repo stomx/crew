@@ -77,6 +77,8 @@ cli_done() {
 }
 
 start_epoch=$(date +%s)
+read_fail_count=0
+BLIND_IDLE="${CREW_GEMINI_BLIND_IDLE:-30}"
 
 while :; do
   now=$(date +%s)
@@ -89,10 +91,21 @@ while :; do
   # Grace period: skip cli_done check while CLI is still initializing.
   if [[ -n "$CLI" ]] && (( now - start_epoch >= GRACE_SECS )); then
     screen="$(mux_read_screen "$SURFACE" || true)"
-    if cli_done "$screen"; then
-      sleep 0.3
-      echo "idle"
-      exit 0
+    if [[ -z "$screen" ]]; then
+      read_fail_count=$((read_fail_count + 1))
+      # read-screen 불가 시 시간 기반 idle 가정 (Gemini 등)
+      if [[ "$CLI" == "gemini" ]] && (( now - start_epoch >= BLIND_IDLE )); then
+        sleep 0.3
+        echo "idle"
+        exit 0
+      fi
+    else
+      read_fail_count=0
+      if cli_done "$screen"; then
+        sleep 0.3
+        echo "idle"
+        exit 0
+      fi
     fi
   fi
 done

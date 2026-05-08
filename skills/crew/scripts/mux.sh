@@ -6,13 +6,15 @@
 
 # --- 환경 감지 ---
 
-CREW_MUX=""
-if [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
-  CREW_MUX=cmux
-elif [[ -n "${TMUX:-}" ]]; then
-  CREW_MUX=tmux
-else
-  CREW_MUX=inline
+CREW_MUX="${CREW_MUX:-}"
+if [[ -z "$CREW_MUX" ]]; then
+  if [[ -n "${TMUX:-}" ]]; then
+    CREW_MUX=tmux
+  elif [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
+    CREW_MUX=cmux
+  else
+    CREW_MUX=inline
+  fi
 fi
 
 # --- 검증 ---
@@ -106,6 +108,21 @@ mux_focus_pane() {
 # --- send text ---
 
 mux_send() {
+  local surface="$1" text="$2"
+  case "$CREW_MUX" in
+    cmux) cmux send --surface "$surface" "$text" >/dev/null ;;
+    tmux)
+      local buf bname
+      buf="$(mktemp -t crew-buf.XXXXXX)"
+      bname="crew-$$-$RANDOM"
+      printf '%s' "$text" > "$buf"
+      tmux load-buffer -b "$bname" "$buf" \; paste-buffer -t "$surface" -b "$bname" -d -p >/dev/null
+      rm -f "$buf"
+      ;;
+  esac
+}
+
+mux_send_literal() {
   local surface="$1" text="$2"
   case "$CREW_MUX" in
     cmux) cmux send --surface "$surface" "$text" >/dev/null ;;

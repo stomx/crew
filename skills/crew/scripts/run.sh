@@ -196,8 +196,10 @@ pane_worker() {
   local done_file="$(crew_session_dir "$SLUG")/done/pane-$pane_idx"
   mkdir -p "$(dirname "$done_file")"
 
-  # Start wait_idle.sh in background (SHA + cli_done pattern detection)
-  "$HERE/wait_idle.sh" "$surface" 10 "$MAX_SECS" "$cli" >/dev/null 2>&1 &
+  # Start wait_idle.sh in background (cli_done pattern detection)
+  local grace=10
+  [[ "$cli" == "gemini" ]] && grace=5
+  "$HERE/wait_idle.sh" "$surface" "$grace" "$MAX_SECS" "$cli" >/dev/null 2>&1 &
   local idle_pid=$!
 
   status="timeout"

@@ -37,15 +37,27 @@ DONE_FILE="$DONE_DIR/pane-$PANE_IDX"
 CLEAN="$(mktemp -t crew-prompt.XXXXXX)"
 perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "$CLEAN"
 
-# Append done-signal instruction
-cat >> "$CLEAN" <<SIGNAL
+# Detect CLI type for this pane
+CLI="$(jq -r --argjson idx "$((PANE_IDX - 1))" '.panes[$idx].cli // ""' "$MANIFEST")"
+
+# Gemini TUI submits on newline, so done-signal must be omitted (rely on cli_done).
+# For Claude/Codex, append done-signal instruction.
+if [[ "$CLI" != "gemini" ]]; then
+  cat >> "$CLEAN" <<SIGNAL
 
 ---
 [SYSTEM] 응답이 완전히 끝나면, 마지막에 반드시 아래 명령을 실행해:
 touch $DONE_FILE
 SIGNAL
+fi
 
-mux_send "$SURFACE" "$(cat "$CLEAN")"
+PROMPT_TEXT="$(cat "$CLEAN")"
+if [[ "$CLI" == "gemini" ]]; then
+  sleep 2
+  mux_send_literal "$SURFACE" "$PROMPT_TEXT"
+else
+  mux_send "$SURFACE" "$PROMPT_TEXT"
+fi
 sleep 0.4
 mux_send_key "$SURFACE" Enter
 
@@ -58,15 +70,19 @@ BYTES="$(wc -c <"$PROMPT_FILE" | awk '{print $1}')"
 FINGERPRINT="$(head -1 "$CLEAN" | cut -c1-30 | tr -d '\n')"
 rm -f "$CLEAN"
 
-if [[ -n "$FINGERPRINT" ]]; then
+# Gemini: send-keys -l 방식이라 paste-buffer retry가 무의미하고
+# read-screen 자체도 빈 문자열일 수 있으므로 verification 스킵.
+if [[ -n "$FINGERPRINT" && "$CLI" != "gemini" ]]; then
   ok=0
   for attempt in 1 2 3; do
     sleep 1.2
     screen="$(mux_read_screen "$SURFACE" || true)"
+    if [[ -z "$screen" ]]; then
+      ok=1; break
+    fi
     if echo "$screen" | grep -qF "$FINGERPRINT"; then
       ok=1; break
     fi
-    # retry: re-inject on attempt 2 (attempt 3 is just a final poll)
     if (( attempt == 2 )); then
       perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "${PROMPT_FILE}.retry"
       mux_send "$SURFACE" "$(cat "${PROMPT_FILE}.retry")"

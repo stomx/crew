@@ -190,24 +190,39 @@ crew_wait_ready() {
     *)      return 0 ;;
   esac
   local start=$(date +%s)
+  local read_fail_count=0
+  local blind_boot="${CREW_BLIND_BOOT_SECS:-12}"
   while :; do
     local screen
     screen="$(mux_read_screen "$surface" || true)"
-    if echo "$screen" | grep -qE "$pattern"; then
-      sleep 1
-      return 0
-    fi
-    if [[ "$cli" == "gemini" ]]; then
-      if echo "$screen" | grep -qi "trust the files in this folder"; then
-        mux_send_key "$surface" Enter || true
+    if [[ -z "$screen" ]]; then
+      read_fail_count=$((read_fail_count + 1))
+      # read-screen이 계속 실패하면 (cmux PTY 미초기화) 시간 기반 fallback
+      if (( $(date +%s) - start >= blind_boot )); then
+        return 0
       fi
-      if echo "$screen" | grep -qE "sandbox" && echo "$screen" | grep -qE "no sandbox"; then
-        mux_send_key "$surface" Down || true
-        sleep 0.3
-        mux_send_key "$surface" Enter || true
+    else
+      read_fail_count=0
+      if echo "$screen" | grep -qE "$pattern"; then
+        sleep 1
+        return 0
+      fi
+      if [[ "$cli" == "gemini" ]]; then
+        if echo "$screen" | grep -qi "trust the files in this folder"; then
+          mux_send_key "$surface" Enter || true
+        fi
+        if echo "$screen" | grep -qE "sandbox" && echo "$screen" | grep -qE "no sandbox"; then
+          mux_send_key "$surface" Down || true
+          sleep 0.3
+          mux_send_key "$surface" Enter || true
+        fi
       fi
     fi
     if (( $(date +%s) - start >= max_wait )); then
+      # read-screen이 한 번도 성공하지 못한 경우 blind ready로 간주
+      if (( read_fail_count > 0 )); then
+        return 0
+      fi
       return 1
     fi
     sleep "$poll"
