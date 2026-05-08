@@ -37,7 +37,6 @@ cli_busy() {
       ;;
     gemini)
       echo "$screen" | grep -qE '\(esc to cancel' && return 0
-      echo "$screen" | grep -qE 'Responding with' && return 0
       echo "$screen" | grep -qE 'Queued \(press' && return 0
       return 1
       ;;
