@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# Usage: run.sh <plan-json-path-or-dash> [idle_secs] [max_secs] [view_secs] [--keep]
+# Usage: run.sh <plan-json-path-or-dash> [_deprecated] [max_secs] [view_secs] [--keep]
 #
 # End-to-end orchestrator. Reads a plan JSON, launches panes (+ report pane),
-# dispatches prompts, waits for idle, captures, collects artifacts, and unless
-# --keep closes panes. Prints a status block on stdout AND live-logs to the
-# report pane (tail -f) so the user sees progress as it happens.
+# dispatches prompts, waits for completion, captures, collects artifacts, and
+# unless --keep closes panes.
 #
+# Completion detection priority:
+#   1. done-file — model executes `touch done/pane-N` (primary, explicit)
+#   2. cli_done pattern — TUI shows response prefix + input prompt (secondary)
+#   3. max_secs — hard timeout (last resort)
+#
+# $2 (formerly idle_secs) is accepted but ignored for backward compat.
 # view_secs (default: $CREW_VIEW_SECS or 10) — linger time after all panes
 # finish so the user can actually see the results on screen before cleanup.
 # --keep bypasses cleanup entirely.
@@ -26,7 +31,7 @@ if [[ "$CREW_MUX" == "inline" ]]; then
 fi
 
 PLAN_INPUT="${1:?plan JSON path (or -) required}"
-IDLE_SECS="${2:-5}"
+# $2 formerly idle_secs — ignored, kept for call-site compat
 MAX_SECS="${3:-300}"
 VIEW_SECS="${4:-${CREW_VIEW_SECS:-10}}"
 
@@ -155,10 +160,21 @@ pane_worker() {
   # Block until this CLI shows its prompt-ready marker. Polls at 0.5s so the
   # first-ready pane fires immediately without waiting on slower siblings.
   if ! crew_wait_ready "$surface" "$cli" 45; then
-    echo "[$(date +%H:%M:%S)]   ! pane-$pane_idx ($cli) not ready after 45s — dispatching anyway" >> "$LOG_FILE"
-  else
-    echo "[$(date +%H:%M:%S)]   • pane-$pane_idx ($cli) ready" >> "$LOG_FILE"
+    # Retry: re-focus pane (may need terminal runtime init) and try once more
+    mux_focus_pane "$surface" 2>/dev/null || true
+    sleep 2
+    if ! crew_wait_ready "$surface" "$cli" 20; then
+      echo "[$(date +%H:%M:%S)]   ✕ pane-$pane_idx ($cli) not ready after retry — skipping" >> "$LOG_FILE"
+      status="not_ready"
+      slot="$("$HERE/capture.sh" "$SLUG" "$pane_idx" "$status" "$prompt_file")"
+      mux_rename "$surface" "crew#$pane_idx ✕ $cli${model:+:$model} — not ready" || true
+      sleep 2
+      mux_close "$surface" 2>/dev/null || true
+      echo "[$(date +%H:%M:%S)]   ✕ pane-$pane_idx closed (not ready)" >> "$LOG_FILE"
+      return 0
+    fi
   fi
+  echo "[$(date +%H:%M:%S)]   • pane-$pane_idx ($cli) ready" >> "$LOG_FILE"
 
   # share_from 처리 (stage 순서는 외부에서 이미 보장됨)
   shares=$(jq -r --argjson i "$i" '.panes[$i].share_from // [] | .[]' "$MANIFEST")
@@ -181,7 +197,7 @@ pane_worker() {
   mkdir -p "$(dirname "$done_file")"
 
   # Start wait_idle.sh in background (SHA + cli_done pattern detection)
-  "$HERE/wait_idle.sh" "$surface" "$IDLE_SECS" "$MAX_SECS" "$cli" >/dev/null 2>&1 &
+  "$HERE/wait_idle.sh" "$surface" 10 "$MAX_SECS" "$cli" >/dev/null 2>&1 &
   local idle_pid=$!
 
   status="timeout"

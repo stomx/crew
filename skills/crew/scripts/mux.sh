@@ -70,7 +70,7 @@ mux_new_split() {
   local direction="$1" from_surface="$2"
   case "$CREW_MUX" in
     cmux)
-      cmux new-split "$direction" --surface "$from_surface" 2>&1 \
+      cmux new-split "$direction" --surface "$from_surface" --focus true 2>&1 \
         | awk '/surface:[0-9]+/ { for (i=1; i<=NF; i++) if ($i ~ /^surface:/) { print $i; exit } }'
       ;;
     tmux)
@@ -84,6 +84,22 @@ mux_new_split() {
       esac
       tmux split-window $flags -t "$from_surface" -P -F '#{pane_id}' 2>&1
       ;;
+  esac
+}
+
+# --- focus surface (triggers terminal runtime init in cmux) ---
+
+mux_focus_pane() {
+  local surface="$1"
+  case "$CREW_MUX" in
+    cmux)
+      local pane
+      pane="$(cmux tree 2>/dev/null | grep -B1 "$surface" | grep -o 'pane:[0-9]*' | head -1 || true)"
+      if [[ -n "$pane" ]]; then
+        cmux focus-pane --pane "$pane" >/dev/null 2>&1
+      fi
+      ;;
+    tmux) tmux select-pane -t "$surface" >/dev/null 2>&1 ;;
   esac
 }
 

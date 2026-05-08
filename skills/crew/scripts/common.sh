@@ -185,7 +185,7 @@ crew_wait_ready() {
   local pattern
   case "$cli" in
     claude) pattern='bypass permissions on|Claude Code v' ;;
-    codex)  pattern='/model to change|OpenAI Codex' ;;
+    codex)  pattern='OpenAI Codex|/model to change' ;;
     gemini) pattern='Type your message|@path/to/file' ;;
     *)      return 0 ;;
   esac
@@ -194,11 +194,18 @@ crew_wait_ready() {
     local screen
     screen="$(mux_read_screen "$surface" || true)"
     if echo "$screen" | grep -qE "$pattern"; then
+      sleep 1
       return 0
     fi
-    # Gemini trust dialog can appear mid-boot — dismiss on the fly.
-    if [[ "$cli" == "gemini" ]] && echo "$screen" | grep -qi "trust the files in this folder"; then
-      mux_send_key "$surface" Enter || true
+    if [[ "$cli" == "gemini" ]]; then
+      if echo "$screen" | grep -qi "trust the files in this folder"; then
+        mux_send_key "$surface" Enter || true
+      fi
+      if echo "$screen" | grep -qE "sandbox" && echo "$screen" | grep -qE "no sandbox"; then
+        mux_send_key "$surface" Down || true
+        sleep 0.3
+        mux_send_key "$surface" Enter || true
+      fi
     fi
     if (( $(date +%s) - start >= max_wait )); then
       return 1

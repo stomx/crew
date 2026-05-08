@@ -148,7 +148,12 @@ for i in $(seq 0 $((N - 1))); do
   mux_rename "$new_surface" "$label" || true
 done
 
-# Give shells a beat
+# Activate terminal runtime: cmux requires focus-pane to initialize Ghostty PTY
+for i in $(seq 1 "$N"); do
+  mux_focus_pane "${SURFACES[$i]}"
+  sleep 0.3
+done
+mux_focus_pane "$CALLER_SURFACE"
 sleep 1
 
 # Boot each CLI inside its pane with bypass flags
@@ -162,12 +167,12 @@ for i in $(seq 0 $((N - 1))); do
   cmd=""
   case "$cli" in
     claude)
-      cmd="ENABLE_PROMPT_CACHING_1H=0 FORCE_PROMPT_CACHING_5M=0 claude --dangerously-skip-permissions"
+      cmd="DISABLE_OMC=1 OMC_SKIP_HOOKS=all ENABLE_PROMPT_CACHING_1H=0 FORCE_PROMPT_CACHING_5M=0 claude --dangerously-skip-permissions"
       [[ -n "$model" ]]  && cmd="$cmd --model $model"
       [[ -n "$effort" ]] && cmd="$cmd --effort $effort"
       ;;
     codex)
-      cmd="codex --dangerously-bypass-approvals-and-sandbox -c 'mcp_servers={}'"
+      cmd="codex --dangerously-bypass-approvals-and-sandbox -c mcp_servers={}"
       [[ -n "$model" ]]  && cmd="$cmd -m $model"
       [[ -n "$effort" ]] && cmd="$cmd -c model_reasoning_effort=$effort"
       ;;
