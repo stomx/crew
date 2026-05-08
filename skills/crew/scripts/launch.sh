@@ -148,10 +148,12 @@ for i in $(seq 0 $((N - 1))); do
   mux_rename "$new_surface" "$label" || true
 done
 
-# Activate terminal runtime: cmux requires focus-pane to initialize Ghostty PTY
+# Activate terminal runtime: cmux requires focus-pane to initialize Ghostty PTY.
+# Wait for cmux tree to register new surfaces before attempting focus.
+sleep 2
 for i in $(seq 1 "$N"); do
   mux_focus_pane "${SURFACES[$i]}"
-  sleep 0.3
+  sleep 1
 done
 mux_focus_pane "$CALLER_SURFACE"
 sleep 1

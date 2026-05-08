@@ -186,7 +186,7 @@ crew_wait_ready() {
   case "$cli" in
     claude) pattern='bypass permissions on|Claude Code v' ;;
     codex)  pattern='OpenAI Codex|/model to change' ;;
-    gemini) pattern='Type your message|@path/to/file' ;;
+    gemini) pattern='Type your message|@path/to/file|Signed in with Google|gemini-' ;;
     *)      return 0 ;;
   esac
   local start=$(date +%s)
