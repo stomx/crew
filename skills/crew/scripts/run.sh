@@ -30,6 +30,17 @@ if [[ "$CREW_MUX" == "inline" ]]; then
   exec "$HERE/inline-run.sh" "$@"
 fi
 
+# cmux read-screen이 새 surface에서 동작하지 않는 문제 회피:
+# tmux가 설치돼 있으면 자동으로 tmux 세션을 백엔드로 사용.
+if [[ "$CREW_MUX" == "cmux" ]] && command -v tmux >/dev/null 2>&1; then
+  CREW_TMUX_SESSION="crew-$$-$RANDOM"
+  tmux new-session -d -s "$CREW_TMUX_SESSION" -x 200 -y 50
+  export CREW_MUX=tmux
+  export TMUX="$(tmux display-message -t "$CREW_TMUX_SESSION" -p '#{socket_path}' 2>/dev/null || echo "/tmp/tmux-$(id -u)/default"),$(tmux display-message -t "$CREW_TMUX_SESSION" -p '#{pid}' 2>/dev/null || echo 0),0"
+  # source mux.sh again to pick up tmux mode
+  source "$HERE/mux.sh"
+fi
+
 PLAN_INPUT="${1:?plan JSON path (or -) required}"
 # $2 formerly idle_secs — ignored, kept for call-site compat
 MAX_SECS="${3:-300}"
@@ -46,6 +57,7 @@ cleanup_on_signal() {
     echo "[$(date +%H:%M:%S)] signal received — cleaning up" >> "$(crew_log_path "$SLUG")" 2>/dev/null || true
     "$HERE/cleanup.sh" "$SLUG" >/dev/null 2>&1 || true
   fi
+  [[ -n "${CREW_TMUX_SESSION:-}" ]] && tmux kill-session -t "$CREW_TMUX_SESSION" 2>/dev/null || true
   exit $rc
 }
 trap cleanup_on_signal INT TERM
@@ -273,3 +285,6 @@ else
 fi
 
 trap - INT TERM
+
+# 자동 생성한 tmux 세션 정리
+[[ -n "${CREW_TMUX_SESSION:-}" ]] && tmux kill-session -t "$CREW_TMUX_SESSION" 2>/dev/null || true

@@ -53,7 +53,7 @@ fi
 
 PROMPT_TEXT="$(cat "$CLEAN")"
 if [[ "$CLI" == "gemini" ]]; then
-  sleep 2
+  sleep 4
   mux_send_literal "$SURFACE" "$PROMPT_TEXT"
 else
   mux_send "$SURFACE" "$PROMPT_TEXT"
