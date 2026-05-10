@@ -40,14 +40,13 @@ perl -0777 -pe 's/\s+\z//' "$PROMPT_FILE" > "$CLEAN"
 # Detect CLI type for this pane
 CLI="$(jq -r --argjson idx "$((PANE_IDX - 1))" '.panes[$idx].cli // ""' "$MANIFEST")"
 
-# Gemini TUI submits on newline, so done-signal must be omitted (rely on cli_done).
-# For Claude/Codex, append done-signal instruction.
-if [[ "$CLI" != "gemini" ]]; then
+# done-signal: Claude만 append. Codex/Gemini는 cli_done 패턴으로 감지.
+# Codex는 done-signal이 있으면 본문 답변을 생략하고 touch만 실행하는 버그가 있음.
+if [[ "$CLI" == "claude" ]]; then
   cat >> "$CLEAN" <<SIGNAL
 
 ---
-위 질문에 먼저 완전히 답한 뒤, 마지막 단계로 아래 명령을 실행해:
-touch $DONE_FILE
+[완료 신호] 위 질문에 대한 답변을 텍스트로 출력한 뒤, 가장 마지막에 실행: touch $DONE_FILE
 SIGNAL
 fi
 
