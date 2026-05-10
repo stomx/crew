@@ -207,6 +207,13 @@ crew_wait_ready() {
         sleep 1
         return 0
       fi
+      if [[ "$cli" == "codex" ]]; then
+        if echo "$screen" | grep -qE "Update available|Press enter to continue"; then
+          mux_send_key "$surface" Down || true
+          sleep 0.3
+          mux_send_key "$surface" Enter || true
+        fi
+      fi
       if [[ "$cli" == "gemini" ]]; then
         if echo "$screen" | grep -qi "trust the files in this folder"; then
           mux_send_key "$surface" Enter || true

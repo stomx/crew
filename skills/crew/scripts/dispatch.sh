@@ -46,12 +46,17 @@ if [[ "$CLI" != "gemini" ]]; then
   cat >> "$CLEAN" <<SIGNAL
 
 ---
-[SYSTEM] 응답이 완전히 끝나면, 마지막에 반드시 아래 명령을 실행해:
+위 질문에 먼저 완전히 답한 뒤, 마지막 단계로 아래 명령을 실행해:
 touch $DONE_FILE
 SIGNAL
 fi
 
 PROMPT_TEXT="$(cat "$CLEAN")"
+# cmux: focus pane before send to ensure terminal is active
+if [[ "$CREW_MUX" == "cmux" ]]; then
+  mux_focus_pane "$SURFACE" 2>/dev/null || true
+  sleep 1
+fi
 if [[ "$CLI" == "gemini" ]]; then
   sleep 4
   mux_send_literal "$SURFACE" "$PROMPT_TEXT"

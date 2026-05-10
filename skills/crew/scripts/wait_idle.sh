@@ -93,8 +93,8 @@ while :; do
     screen="$(mux_read_screen "$SURFACE" || true)"
     if [[ -z "$screen" ]]; then
       read_fail_count=$((read_fail_count + 1))
-      # read-screen 불가 시 시간 기반 idle 가정 (Gemini 등)
-      if [[ "$CLI" == "gemini" ]] && (( now - start_epoch >= BLIND_IDLE )); then
+      # read-screen 불가 시 시간 기반 idle 가정
+      if (( now - start_epoch >= BLIND_IDLE )); then
         sleep 0.3
         echo "idle"
         exit 0
