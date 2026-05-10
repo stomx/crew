@@ -231,6 +231,9 @@ AskUserQuestion 으로 4개를 한 묶음으로 제시:
 **질문 4 — 알림 스타일**:
 > crew 진행 상황을 메인 Claude 창에도 whisper 할까요? (y/n, 기본 n)
 
+**질문 5 — 캐시 보존 기간**:
+> artifact/state 캐시를 며칠 보관할까요? (0=영구 보관, 기본 3)
+
 ## Step 4 — 저장
 
 **Preference-Available 정합성 검사**: 사용자가 질문 1 에서 **(d) 세 개 고루** 를 선택했으나 Step 1–2 결과로 `cli_available` 에서 빠진 CLI 가 있다면, **해당 CLI 의 health check 만 한 번 더 실행**하여 재검증한다. 재검증에서 `pass` 되면 `cli_available` 에 포함, `fail` 이면 사용자에게 "X 인증이 여전히 안 됩니다. 제외하시겠습니까?" 로 확인.
@@ -262,6 +265,7 @@ preference:
 run_defaults:
   view_secs: <int>
   whisper_main: <bool>
+artifact_retention_days: <int>   # 0=영구 보관, 기본 3
 YEOF
 ```
 

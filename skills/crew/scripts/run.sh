@@ -25,6 +25,9 @@ source "$HERE/common.sh"
 crew_require_mux
 command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 3; }
 
+# 오래된 캐시 자동 정리 (비동기, 실행 지연 없음)
+crew_prune_old &
+
 # 멀티플렉서 없으면 인라인 폴백으로 위임
 if [[ "$CREW_MUX" == "inline" ]]; then
   exec "$HERE/inline-run.sh" "$@"

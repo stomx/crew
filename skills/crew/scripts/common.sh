@@ -25,6 +25,31 @@ crew_have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+# 오래된 artifact/state 자동 정리.
+# retention_days=0 이면 삭제하지 않음.
+crew_prune_old() {
+  local retention_days="${CREW_ARTIFACT_RETENTION_DAYS:-3}"
+  # overrides.yaml 에서 읽기
+  local cfg="$HOME/.crew/state/overrides.yaml"
+  if [[ -f "$cfg" ]] && command -v awk >/dev/null 2>&1; then
+    local val
+    val="$(awk '/artifact_retention_days:/ {print $2}' "$cfg")"
+    [[ -n "$val" ]] && retention_days="$val"
+  fi
+  # 0 = 삭제 안함
+  (( retention_days == 0 )) && return 0
+  # state 정리
+  if [[ -d "$CREW_STATE_DIR" ]]; then
+    find "$CREW_STATE_DIR" -mindepth 2 -maxdepth 2 -type d -mtime +"$retention_days" 2>/dev/null \
+      | while read -r d; do rm -rf "$d"; done
+  fi
+  # artifact 정리
+  if [[ -d "$CREW_ARTIFACT_DIR" ]]; then
+    find "$CREW_ARTIFACT_DIR" -mindepth 2 -maxdepth 2 -type d -mtime +"$retention_days" 2>/dev/null \
+      | while read -r d; do rm -rf "$d"; done
+  fi
+}
+
 crew_timestamp() {
   date +%Y%m%d-%H%M%S
 }
