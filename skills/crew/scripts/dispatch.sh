@@ -58,12 +58,25 @@ if [[ "$CREW_MUX" == "cmux" ]]; then
 fi
 if [[ "$CLI" == "gemini" ]]; then
   sleep 4
-  mux_send_literal "$SURFACE" "$PROMPT_TEXT"
+  # cmux: Gemini send는 간헐적으로 실패하므로 retry
+  for _try in 1 2 3; do
+    [[ "$CREW_MUX" == "cmux" ]] && mux_focus_pane "$SURFACE" 2>/dev/null || true
+    sleep 0.5
+    mux_send_literal "$SURFACE" "$PROMPT_TEXT"
+    sleep 0.4
+    mux_send_key "$SURFACE" Enter
+    sleep 2
+    screen="$(mux_read_screen "$SURFACE" 2>/dev/null || true)"
+    if [[ -z "$screen" ]] || echo "$screen" | grep -qF "$(head -1 "$CLEAN" 2>/dev/null | cut -c1-15)"; then
+      break
+    fi
+    sleep 2
+  done
 else
   mux_send "$SURFACE" "$PROMPT_TEXT"
+  sleep 0.4
+  mux_send_key "$SURFACE" Enter
 fi
-sleep 0.4
-mux_send_key "$SURFACE" Enter
 
 BYTES="$(wc -c <"$PROMPT_FILE" | awk '{print $1}')"
 
